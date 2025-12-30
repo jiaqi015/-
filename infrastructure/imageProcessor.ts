@@ -1,4 +1,3 @@
-
 import { IImageProcessor } from '../application/ports';
 import { CameraProfile, DevelopResult } from '../domain/types';
 import { GoogleGenAI } from "@google/genai";
@@ -38,8 +37,9 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 获取最新的 API KEY，通过 Vite define 注入
-    const apiKey = process.env.API_KEY;
+    // 安全获取 API KEY
+    const apiKey = typeof process !== 'undefined' ? process.env?.API_KEY : undefined;
+    
     if (!apiKey) {
       throw new Error("API_KEY_MISSING");
     }
