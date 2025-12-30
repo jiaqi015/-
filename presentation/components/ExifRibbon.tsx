@@ -38,7 +38,14 @@ export const ExifRibbon: React.FC<ExifRibbonProps> = ({ session, imageUrl, onCop
               {copying ? '已复制指令' : '复制神经指令'}
             </span>
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              {copying ? <path d="M20 6L9 17l-5-5"/> : <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>}
+              {copying ? (
+                <path d="M20 6L9 17l-5-5"/>
+              ) : (
+                <>
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                  <rect x="8" y="2" width="8" height="4" rx="1"/>
+                </>
+              )}
             </svg>
           </button>
         )}
