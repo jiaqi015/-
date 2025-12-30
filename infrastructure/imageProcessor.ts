@@ -1,8 +1,6 @@
-
 import { IImageProcessor } from '../application/ports';
 import { CameraProfile, DevelopResult } from '../domain/types';
 import { GoogleGenAI } from "@google/genai";
-import { EnvService } from './envService';
 
 type SupportedAspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 
@@ -26,13 +24,7 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 按照 @google/genai 规范，API 密钥必须从 process.env.API_KEY 获取
-    if (!process.env.API_KEY) {
-      console.error("Critical: API_KEY is missing in process.env.API_KEY");
-      throw new Error("API_KEY_MISSING");
-    }
-    
-    // 按照规范，在每次请求前使用 process.env.API_KEY 直接初始化以获取最新状态
+    // 按照规范，直接使用注入的 process.env.API_KEY
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const { base64Data, mimeType, width, height } = await this.getOptimizedImageData(imageSource);
@@ -76,7 +68,6 @@ export class GeminiImageProcessor implements IImageProcessor {
         blob: new Blob([new Uint8Array(atob(outputBase64).split('').map(c => c.charCodeAt(0)))], { type: 'image/png' })
       };
     } catch (error: any) {
-      // 如果报错包含 "Requested entity was not found."，通常意味着 API Key 无效或未启用计费
       if (error.message?.includes("Requested entity was not found")) throw new Error("API_KEY_INVALID");
       throw error;
     }
