@@ -2,12 +2,16 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  define: {
+    // 确保代码中的 process.env 能够被正确替换
+    'process.env': process.env
+  },
   build: {
-    // 强制输出到 build 目录，解决 Vercel 找不到目录的问题
-    outDir: 'build',
-    // 确保每次构建都会清空旧目录
+    outDir: 'dist',
     emptyOutDir: true,
-    // 保持兼容性配置
     target: 'esnext'
+  },
+  server: {
+    historyApiFallback: true
   }
 });
