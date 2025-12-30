@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // 显式映射 process.env 以支持第三方库的旧式引用
+    // 将环境变量注入到浏览器端代码中
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ''),
     'process.env.BLOB_READ_WRITE_TOKEN': JSON.stringify(process.env.BLOB_READ_WRITE_TOKEN || ''),
   },
@@ -12,10 +12,9 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     target: 'esnext',
-    sourcemap: false,
     minify: 'terser',
     rollupOptions: {
-      // 确保构建器尝试解析所有 node_modules 依赖
+      // 显式确保 Rollup 不会错误地将依赖标记为外部模块
       external: [],
     }
   }
