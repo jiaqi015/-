@@ -55,12 +55,12 @@ export const Uploader: React.FC<UploaderProps> = ({ image, onUpload }) => {
       
       {image ? (
         <>
-          <img src={image} className="w-full h-full object-contain p-8 animate-fade-in" alt="Preview" />
+          <img src={image} className="w-full h-full object-contain p-8 animate-fade-in" alt="预览" />
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center backdrop-blur-sm">
             <div className="w-12 h-12 border border-white/20 rounded-full flex items-center justify-center mb-4">
               <span className="text-white text-xl font-light">+</span>
             </div>
-            <p className="text-white text-[10px] font-black tracking-[0.4em] uppercase">更换影像 / REPLACE</p>
+            <p className="text-white text-[10px] font-black tracking-[0.4em] uppercase">更换影像</p>
           </div>
         </>
       ) : (
@@ -70,15 +70,15 @@ export const Uploader: React.FC<UploaderProps> = ({ image, onUpload }) => {
           </div>
           <div className="flex flex-col gap-2">
             <p className="text-neutral-500 text-[11px] font-black tracking-[0.3em] uppercase">
-              上传影像源 / UPLOAD IMAGE
+              上传影像源
             </p>
             <p className="text-neutral-700 text-[9px] tracking-[0.1em] font-mono uppercase">
-              DRAG, PASTE OR CLICK
+              支持 拖拽, 粘贴 或 点击
             </p>
           </div>
           <div className="w-8 h-px bg-neutral-900"></div>
           <p className="text-neutral-800 text-[8px] tracking-[0.2em] font-mono">
-            JPEG / PNG / RAW SUPPORTED
+            支持 JPEG / PNG / RAW 格式
           </p>
         </div>
       )}
