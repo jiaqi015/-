@@ -1,23 +1,13 @@
-import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
-import react from '@vitejs/plugin-react';
 
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
-    return {
-      server: {
-        port: 3000,
-        host: '0.0.0.0',
-      },
-      plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
-      resolve: {
-        alias: {
-          '@': path.resolve(__dirname, '.'),
-        }
-      }
-    };
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  build: {
+    // 强制输出到 build 目录，解决 Vercel 找不到目录的问题
+    outDir: 'build',
+    // 确保每次构建都会清空旧目录
+    emptyOutDir: true,
+    // 保持兼容性配置
+    target: 'esnext'
+  }
 });
