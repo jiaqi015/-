@@ -24,8 +24,16 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 按照规范：在调用前立即实例化，确保使用最新的环境变量
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // 强制从 process.env.API_KEY 获取，这是由构建工具在部署时注入的
+    const apiKey = process.env.API_KEY;
+    
+    if (!apiKey) {
+      console.error("Environment Variable API_KEY is missing or undefined.");
+      throw new Error("MISSING_API_KEY");
+    }
+
+    // 每次请求前实例化 GoogleGenAI 以确保使用最新的上下文 Key
+    const ai = new GoogleGenAI({ apiKey });
     
     const { base64Data, mimeType, width, height } = await this.getOptimizedImageData(imageSource);
     const aspectRatio = this.getClosestAspectRatio(width, height);
@@ -68,7 +76,7 @@ export class GeminiImageProcessor implements IImageProcessor {
         blob: new Blob([new Uint8Array(atob(outputBase64).split('').map(c => c.charCodeAt(0)))], { type: 'image/png' })
       };
     } catch (error: any) {
-      console.error("Gemini API Error:", error);
+      console.error("Gemini API Error Detail:", error);
       throw error;
     }
   }
@@ -83,7 +91,7 @@ export class GeminiImageProcessor implements IImageProcessor {
 
   private async getOptimizedImageData(source: string | File): Promise<{ base64Data: string; mimeType: string; width: number; height: number }> {
     return new Promise((resolve, reject) => {
-      const MAX_SIZE = 1024; // 稍微降低尺寸以提升稳定性
+      const MAX_SIZE = 1024;
       const img = new Image();
       const processImg = (imageElement: HTMLImageElement) => {
         let w = imageElement.naturalWidth;
@@ -96,7 +104,7 @@ export class GeminiImageProcessor implements IImageProcessor {
         const ctx = canvas.getContext('2d');
         if (!ctx) return reject(new Error("Canvas failed"));
         ctx.drawImage(imageElement, 0, 0, w, h);
-        resolve({ base64Data: canvas.toDataURL('image/jpeg', 0.8).split(',')[1], mimeType: 'image/jpeg', width: w, height: h });
+        resolve({ base64Data: canvas.toDataURL('image/jpeg', 0.85).split(',')[1], mimeType: 'image/jpeg', width: w, height: h });
       };
       const handleBlob = (blob: Blob) => {
         const url = URL.createObjectURL(blob);

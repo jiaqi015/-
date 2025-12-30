@@ -5,6 +5,16 @@ import { CameraPicker } from './components/CameraPicker';
 import { developPhotoUseCase, cameraCatalogUseCase, downloadAppService } from '../infrastructure/container';
 import { CameraProfile, DevelopSession } from '../domain/types';
 
+// Declare aistudio for window as per @google/genai coding guidelines
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
+
 export const Home: React.FC = () => {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>('leica-m3-rigid');
@@ -14,18 +24,29 @@ export const Home: React.FC = () => {
   const [profiles] = useState<CameraProfile[]>(() => cameraCatalogUseCase.getProfiles());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
-  // 按照规范：初次加载时检查是否有 Key
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+  const [isDeployingInfo, setIsDeployingInfo] = useState<boolean>(false);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
-      if (window.aistudio) {
+      // 1. 优先尝试调用 AI Studio 官方选择器接口（如果存在）
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
-        setIsAuthorized(hasKey);
+        if (hasKey) {
+          setIsAuthorized(true);
+          return;
+        }
+      }
+      
+      // 2. 检查由 Vite 注入的 process.env.API_KEY
+      // 注意：构建工具会将此字符串直接替换为常量
+      const key = process.env.API_KEY;
+      if (key && key.length > 5) {
+        setIsAuthorized(true);
       } else {
-        // 如果在 Vercel 等环境，且已经通过环境变量配置了 Key
-        setIsAuthorized(!!process.env.API_KEY);
+        // 如果环境变量为空，可能是部署后才设置的，提醒用户
+        setIsDeployingInfo(true);
       }
     };
     checkAuth();
@@ -50,12 +71,14 @@ export const Home: React.FC = () => {
   );
 
   const handleOpenKeySelector = async () => {
-    // 按照规范：如果环境支持选择器，则打开它
-    if (window.aistudio) {
+    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
+      // Assume the key selection was successful after triggering openSelectKey() to mitigate race conditions.
+      setIsAuthorized(true);
+    } else {
+      // 引导用户进行 Vercel 重新部署
+      window.open('https://vercel.com/docs/concepts/projects/environment-variables#redeploying-to-apply-changes', '_blank');
     }
-    // 按照规范：为了规避 race condition，触发选择后立即假设成功并进入应用
-    setIsAuthorized(true);
   };
 
   const handleUpload = (file: File) => {
@@ -72,14 +95,22 @@ export const Home: React.FC = () => {
       setResult({ session, url: session.outputUrl });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
-      console.error(error);
-      const errorMsg = error.message || "";
-      // 按照规范：如果报错提示找不到实体或权限拒绝，重置状态让用户重新选择 Key
-      if (errorMsg.includes("Requested entity was not found") || errorMsg.includes("PERMISSION_DENIED") || errorMsg.includes("leaked")) {
-        alert('密钥失效或未开启付费账单（Pro 模型要求）。请点击下方按钮重新连接。');
+      console.error("Development Error:", error);
+      const msg = error.message || "";
+      if (msg.includes("API Key must be set") || msg === "MISSING_API_KEY") {
+        alert('API 密钥未生效。请在 Vercel 后台点击 "Redeploy" 以应用您刚刚设置的环境变量。');
         setIsAuthorized(false);
+        setIsDeployingInfo(true);
+      } else if (msg.includes("Requested entity was not found.")) {
+        // According to GenAI guidelines: reset key selection state if entity not found.
+        if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
+          await window.aistudio.openSelectKey();
+          setIsAuthorized(true);
+        }
+      } else if (msg.includes("404") || msg.includes("not found")) {
+        alert('请求失败：请确保您的 API 密钥所属项目已开启 Google Cloud 计费（Billing），Gemini 3 Pro 模型需要付费项目支持。');
       } else {
-        alert('显影异常，请重试或检查网络环境。');
+        alert('显影失败，请检查网络连接或尝试刷新页面。');
       }
     } finally {
       setIsDeveloping(false);
@@ -105,16 +136,29 @@ export const Home: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#121212] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
         <Logo />
-        <div className="mt-8 max-w-sm text-neutral-500 text-[12px] tracking-wide mb-8 leading-relaxed">
-          为了开启 2K 高清神经合成引擎，您需要连接自己的 Google Gemini API 密钥。
-          <br/>
-          <span className="text-neutral-700 italic">Gemini 3 Pro 要求您的项目必须绑定 <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline">付费账单</a>。</span>
+        <div className="mt-8 max-w-md text-neutral-500 text-[12px] tracking-wide mb-12 leading-relaxed">
+          {isDeployingInfo ? (
+            <div className="border border-[#E30613]/30 p-6 bg-[#E30613]/5 rounded-sm">
+              <p className="text-white font-bold mb-4 uppercase tracking-[0.2em]">⚠️ 需要重新部署 / ACTION REQUIRED</p>
+              <p className="mb-4">检测到您已在 Vercel 配置密钥，但当前网页仍在使用旧版本。</p>
+              <p className="text-[#E30613] font-black">请前往 Vercel 项目控制台 -> Deployments -> 点击最新一次部署旁边的三个点 -> 选择 "Redeploy"。</p>
+            </div>
+          ) : (
+            <>
+              为了开启 2K 高清神经合成引擎，需要连接 Google Gemini API 密钥。
+              <br/>
+              <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline hover:text-white transition-colors block my-2">
+                了解账单与计费 (Billing)
+              </a>
+              <span className="text-neutral-700 italic">LEIFI LAB 采用 DDD 架构，确保您的影像在本地完成预处理。</span>
+            </>
+          )}
         </div>
         <button 
           onClick={handleOpenKeySelector} 
           className="h-16 px-12 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase active:scale-95 shadow-2xl"
         >
-          连接密钥 / CONNECT KEY
+          {isDeployingInfo ? "查看部署指引 / HOW TO REDEPLOY" : "连接密钥 / CONNECT KEY"}
         </button>
       </div>
     );
