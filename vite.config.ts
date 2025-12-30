@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  plugins: [react()],
   define: {
     // 注入 process.env.API_KEY，确保 AI 模块能正常读取密钥
     'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ""),
@@ -9,7 +11,6 @@ export default defineConfig({
     'global': 'globalThis'
   },
   build: {
-    // 强制输出到 dist，与 vercel.json 保持一致
     outDir: 'dist',
     emptyOutDir: true,
     target: 'esnext',

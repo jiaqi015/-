@@ -37,8 +37,13 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 安全获取 API KEY
-    const apiKey = typeof process !== 'undefined' ? process.env?.API_KEY : undefined;
+    // 更加稳健的 API KEY 获取方式
+    let apiKey = '';
+    try {
+      apiKey = (window as any).process?.env?.API_KEY || (import.meta as any).env?.VITE_API_KEY || process.env.API_KEY || '';
+    } catch (e) {
+      // 捕获 process 未定义的异常
+    }
     
     if (!apiKey) {
       throw new Error("API_KEY_MISSING");
