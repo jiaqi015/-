@@ -15,33 +15,16 @@ export const Home: React.FC = () => {
   const [profiles] = useState<CameraProfile[]>(() => cameraCatalogUseCase.getProfiles());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
-  // 状态改为 false，除非检测到 Key
-  const [hasKey, setHasKey] = useState<boolean | null>(null);
+  // 初始状态检查密钥
+  const [hasKey, setHasKey] = useState<boolean | null>(EnvService.hasValidKey());
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const checkApiKey = async () => {
-      // 1. 检查环境变量中是否已经有 Key
-      if (EnvService.hasValidKey()) {
-        setHasKey(true);
-        return;
-      }
-
-      // 2. 检查 aistudio 状态
-      try {
-        if ((window as any).aistudio) {
-          const selected = await (window as any).aistudio.hasSelectedApiKey();
-          setHasKey(selected);
-        } else {
-          // 如果既没环境变量又没 aistudio，则显示连接按钮
-          setHasKey(false);
-        }
-      } catch (e) {
-        setHasKey(false);
-      }
-    };
-    checkApiKey();
-  }, []);
+    // 如果初始未检测到（极其罕见），则尝试二次确认
+    if (!hasKey) {
+      setHasKey(EnvService.hasValidKey());
+    }
+  }, [hasKey]);
 
   useEffect(() => {
     if (isDeveloping) {
@@ -65,9 +48,6 @@ export const Home: React.FC = () => {
     if ((window as any).aistudio) {
       await (window as any).aistudio.openSelectKey();
       setHasKey(true);
-    } else {
-      // 提示用户在 Vercel 设置环境变量
-      alert("请在 Vercel 项目设置中添加名为 API_KEY 的环境变量并重新部署。");
     }
   };
 
@@ -87,9 +67,10 @@ export const Home: React.FC = () => {
     } catch (error: any) {
       console.error(error);
       if (error.message === 'API_KEY_INVALID' || error.message === 'API_KEY_MISSING') {
+        alert('API 密钥无效或配置错误。');
         setHasKey(false);
       } else {
-        alert('AI 显影引擎遇到阻碍，请检查配置。');
+        alert('AI 显影引擎遇到阻碍，请检查网络或配置。');
       }
     } finally {
       setIsDeveloping(false);
@@ -116,10 +97,10 @@ export const Home: React.FC = () => {
       <div className="min-h-screen bg-[#121212] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
         <Logo />
         <div className="mt-8 max-w-sm text-neutral-500 text-[12px] tracking-wide mb-8">
-          本应用需要连接 API 密钥。你可以在 Vercel 设置环境变量 `API_KEY`，或者点击下方按钮。
+          密钥失效。请重新部署应用或在当前会话中连接。
         </div>
         <button onClick={handleOpenKeySelector} className="h-16 px-12 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase">
-          连接密钥 / CONNECT
+          重新连接 / RECONNECT
         </button>
       </div>
     );

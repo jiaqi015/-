@@ -1,3 +1,4 @@
+
 import { IImageProcessor } from '../application/ports';
 import { CameraProfile, DevelopResult } from '../domain/types';
 import { GoogleGenAI } from "@google/genai";
@@ -11,12 +12,9 @@ class PromptComposer {
     let prompt = `[CRITICAL DIRECTIVE: NEURAL OPTICAL RECONSTRUCTION - PROJECT ${name}]\n`;
     prompt += `PRIMARY ENGINE: ARTISTIC SYNTHESIS AT ${Math.round(intensity * 100)}% INTENSITY.\n\n`;
     prompt += `CORE MANIFESTO:\n${profile.promptTemplate.trim()}\n\n`;
-    prompt += `HARDWARE SPECIFICATIONS FOR SYNTHESIS:\n`;
-    prompt += `- EMULATED LIGHT PATH: ${recipe.exposure > 0 ? 'Overexposed by' : 'Underexposed by'} ${Math.abs(recipe.exposure)} stops.\n`;
-    prompt += `- SIGNAL NOISE RATIO: ${recipe.grainAmount > 20 ? 'High-energy organic grain matrix' : 'Low-noise laboratory signal'}.\n`;
-    prompt += `- CHROMATIC SATURATION: ${recipe.saturation > 20 ? 'Deep spectral saturation' : 'Desaturated cinematic palette'}.\n`;
-    prompt += `\nOPERATIONAL RULES:\n`;
-    prompt += `1. ABSOLUTE GEOMETRIC FIDELITY\n2. NO HALOS\n3. DYNAMIC RANGE MAPPING\n`;
+    prompt += `HARDWARE SPECIFICATIONS:\n`;
+    prompt += `- EMULATED LIGHT PATH: ${recipe.exposure > 0 ? 'Overexposed' : 'Underexposed'} by ${Math.abs(recipe.exposure)} stops.\n`;
+    prompt += `- SIGNAL NOISE: ${recipe.grainAmount > 20 ? 'High grain' : 'Low noise'}.\n`;
     if (recipe.grayscale) prompt += `4. MONOCHROMATIC DOMAIN\n`;
     return prompt;
   }
@@ -28,15 +26,14 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 每次调用前通过 EnvService 获取最新的 Key
-    const apiKey = EnvService.getApiKey();
-    
-    if (!apiKey) {
+    // 按照 @google/genai 规范，API 密钥必须从 process.env.API_KEY 获取
+    if (!process.env.API_KEY) {
+      console.error("Critical: API_KEY is missing in process.env.API_KEY");
       throw new Error("API_KEY_MISSING");
     }
     
-    // 严格遵循：在初始化时传入 apiKey 参数
-    const ai = new GoogleGenAI({ apiKey });
+    // 按照规范，在每次请求前使用 process.env.API_KEY 直接初始化以获取最新状态
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const { base64Data, mimeType, width, height } = await this.getOptimizedImageData(imageSource);
     const aspectRatio = this.getClosestAspectRatio(width, height);
@@ -57,12 +54,11 @@ export class GeminiImageProcessor implements IImageProcessor {
       });
 
       let outputBase64 = '';
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            outputBase64 = part.inlineData.data;
-            break;
-          }
+      const parts = response.candidates?.[0]?.content?.parts || [];
+      for (const part of parts) {
+        if (part.inlineData) {
+          outputBase64 = part.inlineData.data;
+          break;
         }
       }
 
@@ -80,6 +76,7 @@ export class GeminiImageProcessor implements IImageProcessor {
         blob: new Blob([new Uint8Array(atob(outputBase64).split('').map(c => c.charCodeAt(0)))], { type: 'image/png' })
       };
     } catch (error: any) {
+      // 如果报错包含 "Requested entity was not found."，通常意味着 API Key 无效或未启用计费
       if (error.message?.includes("Requested entity was not found")) throw new Error("API_KEY_INVALID");
       throw error;
     }
