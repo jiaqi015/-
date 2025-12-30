@@ -24,7 +24,7 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 关键：每次处理请求时创建新实例，确保使用最新的 process.env.API_KEY
+    // 按照规范：在调用前立即实例化，确保使用最新的环境变量
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const { base64Data, mimeType, width, height } = await this.getOptimizedImageData(imageSource);
@@ -68,7 +68,6 @@ export class GeminiImageProcessor implements IImageProcessor {
         blob: new Blob([new Uint8Array(atob(outputBase64).split('').map(c => c.charCodeAt(0)))], { type: 'image/png' })
       };
     } catch (error: any) {
-      // 捕获 API 报错并规范化，便于前端 UI 提示重选 Key
       console.error("Gemini API Error:", error);
       throw error;
     }
@@ -84,7 +83,7 @@ export class GeminiImageProcessor implements IImageProcessor {
 
   private async getOptimizedImageData(source: string | File): Promise<{ base64Data: string; mimeType: string; width: number; height: number }> {
     return new Promise((resolve, reject) => {
-      const MAX_SIZE = 1536; 
+      const MAX_SIZE = 1024; // 稍微降低尺寸以提升稳定性
       const img = new Image();
       const processImg = (imageElement: HTMLImageElement) => {
         let w = imageElement.naturalWidth;
@@ -97,7 +96,7 @@ export class GeminiImageProcessor implements IImageProcessor {
         const ctx = canvas.getContext('2d');
         if (!ctx) return reject(new Error("Canvas failed"));
         ctx.drawImage(imageElement, 0, 0, w, h);
-        resolve({ base64Data: canvas.toDataURL('image/jpeg', 0.85).split(',')[1], mimeType: 'image/jpeg', width: w, height: h });
+        resolve({ base64Data: canvas.toDataURL('image/jpeg', 0.8).split(',')[1], mimeType: 'image/jpeg', width: w, height: h });
       };
       const handleBlob = (blob: Blob) => {
         const url = URL.createObjectURL(blob);

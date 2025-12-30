@@ -14,17 +14,17 @@ export const Home: React.FC = () => {
   const [profiles] = useState<CameraProfile[]>(() => cameraCatalogUseCase.getProfiles());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
-  // 按照规范检测是否有 Key，如果没有则显示连接界面
+  // 按照规范：初次加载时检查是否有 Key
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
-      if ((window as any).aistudio) {
-        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+      if (window.aistudio) {
+        const hasKey = await window.aistudio.hasSelectedApiKey();
         setIsAuthorized(hasKey);
       } else {
-        // 如果不在 AI Studio 环境，且没有预设 env，默认也需要授权逻辑
+        // 如果在 Vercel 等环境，且已经通过环境变量配置了 Key
         setIsAuthorized(!!process.env.API_KEY);
       }
     };
@@ -50,13 +50,12 @@ export const Home: React.FC = () => {
   );
 
   const handleOpenKeySelector = async () => {
-    if ((window as any).aistudio) {
-      await (window as any).aistudio.openSelectKey();
-      // 竞态处理：触发后直接假设成功并进入应用
-      setIsAuthorized(true);
-    } else {
-      alert("请在 Vercel 环境变量中配置 API_KEY，或在支持的 AI 平台中运行。");
+    // 按照规范：如果环境支持选择器，则打开它
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
     }
+    // 按照规范：为了规避 race condition，触发选择后立即假设成功并进入应用
+    setIsAuthorized(true);
   };
 
   const handleUpload = (file: File) => {
@@ -74,12 +73,13 @@ export const Home: React.FC = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error(error);
-      // 如果报错 Requested entity was not found，说明 Key 无效，重置授权状态
-      if (error.message?.includes("not found") || error.message?.includes("PERMISSION_DENIED") || error.message?.includes("leaked")) {
-        alert('API 密钥已过期或被封禁，请重新选择。');
+      const errorMsg = error.message || "";
+      // 按照规范：如果报错提示找不到实体或权限拒绝，重置状态让用户重新选择 Key
+      if (errorMsg.includes("Requested entity was not found") || errorMsg.includes("PERMISSION_DENIED") || errorMsg.includes("leaked")) {
+        alert('密钥失效或未开启付费账单（Pro 模型要求）。请点击下方按钮重新连接。');
         setIsAuthorized(false);
       } else {
-        alert('AI 显影引擎遇到阻碍，请检查网络或配置。');
+        alert('显影异常，请重试或检查网络环境。');
       }
     } finally {
       setIsDeveloping(false);
@@ -108,9 +108,12 @@ export const Home: React.FC = () => {
         <div className="mt-8 max-w-sm text-neutral-500 text-[12px] tracking-wide mb-8 leading-relaxed">
           为了开启 2K 高清神经合成引擎，您需要连接自己的 Google Gemini API 密钥。
           <br/>
-          请确保您的项目已开启 <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-white underline">付费账单</a> 以支持 Pro 模型。
+          <span className="text-neutral-700 italic">Gemini 3 Pro 要求您的项目必须绑定 <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline">付费账单</a>。</span>
         </div>
-        <button onClick={handleOpenKeySelector} className="h-16 px-12 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase active:scale-95">
+        <button 
+          onClick={handleOpenKeySelector} 
+          className="h-16 px-12 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase active:scale-95 shadow-2xl"
+        >
           连接密钥 / CONNECT KEY
         </button>
       </div>
@@ -191,38 +194,13 @@ export const Home: React.FC = () => {
           </div>
         </section>
 
-        {result ? (
-          <section className="animate-fade-in grid md:grid-cols-[1fr,2fr] gap-12 pt-12 border-t border-neutral-900">
-            <div className="flex flex-col gap-10">
-              <div className="flex flex-col gap-2">
-                <span className="text-[10px] font-black text-neutral-600 uppercase tracking-[0.3em]">会话元数据 / Session Meta</span>
-                <div className="h-px w-full bg-neutral-900"></div>
-              </div>
-              <div className="flex flex-col gap-8">
-                <div className="flex items-center gap-5">
-                  <div className="w-12 h-12 text-white opacity-40" dangerouslySetInnerHTML={{ __html: selectedProfile?.icon.value || '' }}></div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] text-neutral-700 uppercase font-mono">光学模拟预设</span>
-                    <span className="text-[18px] font-bold text-white uppercase">{result.session.cameraName}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="bg-[#161616] p-10 border border-neutral-900 flex items-center rounded-sm">
-              <p className="text-neutral-400 text-[16px] md:text-[18px] font-light leading-relaxed italic tracking-wide">
-                {selectedProfile?.description}
-              </p>
-            </div>
-          </section>
-        ) : (
-          <section className="flex flex-col gap-12 pt-20 border-t border-neutral-900">
-            <div className="flex flex-col gap-2">
-              <h3 className="text-[12px] font-black text-white uppercase tracking-[0.6em]">光学预设目录 / Optical Catalog</h3>
-              <p className="text-[10px] text-neutral-600 font-mono tracking-widest uppercase">Select your emulated optical instrument</p>
-            </div>
-            <CameraPicker profiles={profiles} selectedId={selectedCameraId} onSelect={setSelectedCameraId} />
-          </section>
-        )}
+        <section className="flex flex-col gap-12 pt-20 border-t border-neutral-900">
+          <div className="flex flex-col gap-2">
+            <h3 className="text-[12px] font-black text-white uppercase tracking-[0.6em]">光学预设目录 / Optical Catalog</h3>
+            <p className="text-[10px] text-neutral-600 font-mono tracking-widest uppercase">Select your emulated optical instrument</p>
+          </div>
+          <CameraPicker profiles={profiles} selectedId={selectedCameraId} onSelect={setSelectedCameraId} />
+        </section>
 
         <footer className="mt-12 text-center border-t border-neutral-900 pt-20 pb-20">
           <div className="flex flex-col items-center gap-6 opacity-30">
