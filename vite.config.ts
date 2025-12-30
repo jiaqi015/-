@@ -4,20 +4,16 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   define: {
-    // 注入 process.env.API_KEY，确保 AI 模块能正常读取密钥
-    'process.env.API_KEY': JSON.stringify(process.env.API_KEY || ""),
-    // 兼容某些三方库对 process.env 的访问
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
+    // 必须定义 process.env 以免浏览器端抛出 'process is not defined' 错误
+    'process.env': {
+      API_KEY: process.env.API_KEY || "",
+      NODE_ENV: process.env.NODE_ENV || "production"
+    },
     'global': 'globalThis'
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    target: 'esnext',
-    minify: 'esbuild',
-    sourcemap: false
-  },
-  server: {
-    historyApiFallback: true
+    target: 'esnext'
   }
 });

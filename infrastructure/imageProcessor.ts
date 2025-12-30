@@ -37,18 +37,14 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 更加稳健的 API KEY 获取方式
-    let apiKey = '';
-    try {
-      apiKey = (window as any).process?.env?.API_KEY || (import.meta as any).env?.VITE_API_KEY || process.env.API_KEY || '';
-    } catch (e) {
-      // 捕获 process 未定义的异常
-    }
+    // 严格使用 process.env.API_KEY。Gemini 3 Pro 的 Key 由 aistudio 注入到此变量。
+    const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
       throw new Error("API_KEY_MISSING");
     }
     
+    // 每次调用时重新实例化，确保使用最新的 Key
     const ai = new GoogleGenAI({ apiKey });
     
     const { base64Data, mimeType, width, height } = await this.getOptimizedImageData(imageSource);
