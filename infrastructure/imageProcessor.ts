@@ -27,9 +27,10 @@ export class GeminiImageProcessor implements IImageProcessor {
     intensity: number
   ): Promise<DevelopResult> {
     const apiKey = process.env.API_KEY;
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
     
     if (!apiKey) {
-      throw new Error("缺少显影密钥");
+      throw new Error("缺少显影密钥 (API_KEY)");
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -61,15 +62,28 @@ export class GeminiImageProcessor implements IImageProcessor {
         }
       }
 
-      if (!outputBase64) throw new Error("引擎响应为空");
+      if (!outputBase64) throw new Error("显影引擎响应为空");
 
-      // 将生成的图片上传至 Vercel Blob 实现“全局持久化”
       const sessionId = `sess_${Math.random().toString(36).substr(2, 9)}`;
       const imageBlob = this.base64ToBlob(outputBase64, 'image/png');
       
-      const { url: cloudUrl } = await put(`leifi-lab/outputs/${sessionId}.png`, imageBlob, {
-        access: 'public',
-      });
+      let finalUrl = '';
+
+      // 弹性处理：如果有 Token，则上传到云端；否则使用本地 Object URL
+      if (blobToken && blobToken.length > 0) {
+        try {
+          const { url: cloudUrl } = await put(`leifi-lab/outputs/${sessionId}.png`, imageBlob, {
+            access: 'public',
+            token: blobToken
+          });
+          finalUrl = cloudUrl;
+        } catch (uploadError) {
+          console.warn('云端上传失败，回退至本地预览链接', uploadError);
+          finalUrl = URL.createObjectURL(imageBlob);
+        }
+      } else {
+        finalUrl = URL.createObjectURL(imageBlob);
+      }
 
       return {
         session: {
@@ -78,12 +92,12 @@ export class GeminiImageProcessor implements IImageProcessor {
           cameraName: profile.name,
           createdAt: new Date(),
           outputMeta: { width, height, intensity, promptUsed: fullPrompt },
-          outputUrl: cloudUrl // 使用云端永久链接
+          outputUrl: finalUrl
         },
         blob: imageBlob
       };
     } catch (error: any) {
-      console.error("Gemini 显影错误:", error);
+      console.error("Gemini 显影过程出错:", error);
       throw error;
     }
   }

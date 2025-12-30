@@ -4,81 +4,123 @@ import { DevelopSession } from '../domain/types';
 import { put, list } from "@vercel/blob";
 
 /**
- * 基于 Vercel Blob 的全局云端存储仓库
- * 实现跨设备、跨用户的“全局底片”画廊
+ * 混合动力底片仓库
+ * 优先使用 Vercel Blob 云端同步，若无 Token 则自动降级至本地 localStorage
  */
 export class VercelBlobSessionRepository implements IDevelopSessionRepository {
   private readonly PREFIX = 'leifi-lab/sessions/';
-  // 注意：在实际 Vercel 环境中，BLOB_READ_WRITE_TOKEN 会被自动识别
-  // 这里我们假设通过 process.env.BLOB_READ_WRITE_TOKEN 提供支持
+  private readonly LOCAL_KEY = 'leifi_local_sessions';
+  
+  private getToken(): string | undefined {
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    return (token && token.length > 0) ? token : undefined;
+  }
 
   async save(session: DevelopSession): Promise<void> {
-    try {
-      // 1. 将 Session 元数据转换为 JSON
-      const sessionData = JSON.stringify({
-        ...session,
-        createdAt: session.createdAt.toISOString()
-      });
+    const token = this.getToken();
+    
+    // 无论是否有云端 Token，都先同步一份到本地 localStorage 备份
+    this.saveToLocal(session);
 
-      // 2. 上传到 Vercel Blob
-      // 路径格式：leifi-lab/sessions/sess_[id].json
-      await put(`${this.PREFIX}${session.sessionId}.json`, sessionData, {
-        access: 'public',
-        contentType: 'application/json',
-        addRandomSuffix: false
-      });
-      
-      console.log('底片元数据已同步至云端');
-    } catch (error) {
-      console.error('云端同步失败，降级保存:', error);
-      // 可选：在此处实现 IndexedDB 降级逻辑，但为了满足“全局”需求，此处仅记录错误
+    if (token) {
+      try {
+        const sessionData = JSON.stringify({
+          ...session,
+          createdAt: session.createdAt.toISOString()
+        });
+
+        await put(`${this.PREFIX}${session.sessionId}.json`, sessionData, {
+          access: 'public',
+          contentType: 'application/json',
+          addRandomSuffix: false,
+          token: token
+        });
+        console.log('底片已同步至全球画廊');
+      } catch (error) {
+        console.warn('云端同步暂时失效:', error);
+      }
     }
   }
 
   async getById(id: string): Promise<DevelopSession | undefined> {
-    try {
-      const response = await fetch(`https://${process.env.VERCEL_URL || 'leifi-lab.vercel.app'}/api/blob/get?path=${this.PREFIX}${id}.json`);
-      if (!response.ok) return undefined;
-      const data = await response.json();
-      return {
-        ...data,
-        createdAt: new Date(data.createdAt)
-      };
-    } catch {
-      return undefined;
+    const token = this.getToken();
+    
+    // 优先从本地找，速度最快
+    const local = this.getFromLocal().find(s => s.sessionId === id);
+    if (local) return local;
+
+    if (token) {
+      try {
+        const { blobs } = await list({
+          prefix: `${this.PREFIX}${id}.json`,
+          token: token
+        });
+        if (blobs.length > 0) {
+          const response = await fetch(blobs[0].url);
+          const data = await response.json();
+          return { ...data, createdAt: new Date(data.createdAt) };
+        }
+      } catch (e) {
+        return undefined;
+      }
     }
+    return undefined;
   }
 
   async getAll(): Promise<DevelopSession[]> {
-    try {
-      // 1. 列出所有在指定前缀下的 blobs
-      const { blobs } = await list({
-        prefix: this.PREFIX,
-      });
+    const token = this.getToken();
+    let sessions: DevelopSession[] = this.getFromLocal();
 
-      // 2. 筛选出 JSON 配置文件并并发抓取内容
-      const sessionBlobs = blobs.filter(b => b.pathname.endsWith('.json'));
-      
-      // 为了性能考虑，只取最近的 20 条
-      const latestBlobs = sessionBlobs
-        .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
-        .slice(0, 20);
+    if (token) {
+      try {
+        const { blobs } = await list({
+          prefix: this.PREFIX,
+          token: token
+        });
 
-      const sessions = await Promise.all(
-        latestBlobs.map(async (blob) => {
-          const res = await fetch(blob.url);
-          const data = await res.json();
-          return {
-            ...data,
-            createdAt: new Date(data.createdAt)
-          } as DevelopSession;
-        })
-      );
+        const cloudSessions = await Promise.all(
+          blobs.filter(b => b.pathname.endsWith('.json'))
+            .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
+            .slice(0, 20)
+            .map(async (blob) => {
+              try {
+                const res = await fetch(blob.url);
+                const data = await res.json();
+                return { ...data, createdAt: new Date(data.createdAt) } as DevelopSession;
+              } catch { return null; }
+            })
+        );
 
-      return sessions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    } catch (error) {
-      console.error('无法获取全局底片记录:', error);
-      return [];
+        const validCloud = cloudSessions.filter((s): s is DevelopSession => s !== null);
+        
+        // 合并去重
+        const sessionMap = new Map<string, DevelopSession>();
+        [...sessions, ...validCloud].forEach(s => sessionMap.set(s.sessionId, s));
+        sessions = Array.from(sessionMap.values());
+      } catch (error) {
+        console.warn('无法拉取云端记录，仅显示本地历史');
+      }
     }
+
+    return sessions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  private saveToLocal(session: DevelopSession) {
+    const sessions = this.getFromLocal();
+    const index = sessions.findIndex(s => s.sessionId === session.sessionId);
+    if (index > -1) sessions[index] = session;
+    else sessions.unshift(session);
+    localStorage.setItem(this.LOCAL_KEY, JSON.stringify(sessions.slice(0, 50)));
+  }
+
+  private getFromLocal(): DevelopSession[] {
+    try {
+      const data = localStorage.getItem(this.LOCAL_KEY);
+      if (!data) return [];
+      return JSON.parse(data).map((s: any) => ({
+        ...s,
+        createdAt: new Date(s.createdAt)
+      }));
+    } catch { return []; }
   }
 }
