@@ -7,11 +7,14 @@ import { CameraProfile, DevelopSession } from '../domain/types';
 
 // Declare aistudio for window as per @google/genai coding guidelines
 declare global {
+  /* Fix: Define AIStudio interface to ensure identical modifiers and type compatibility for window.aistudio */
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
   interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
+    aistudio: AIStudio;
   }
 }
 
@@ -40,12 +43,10 @@ export const Home: React.FC = () => {
       }
       
       // 2. 检查由 Vite 注入的 process.env.API_KEY
-      // 注意：构建工具会将此字符串直接替换为常量
       const key = process.env.API_KEY;
       if (key && key.length > 5) {
         setIsAuthorized(true);
       } else {
-        // 如果环境变量为空，可能是部署后才设置的，提醒用户
         setIsDeployingInfo(true);
       }
     };
@@ -73,10 +74,8 @@ export const Home: React.FC = () => {
   const handleOpenKeySelector = async () => {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       await window.aistudio.openSelectKey();
-      // Assume the key selection was successful after triggering openSelectKey() to mitigate race conditions.
       setIsAuthorized(true);
     } else {
-      // 引导用户进行 Vercel 重新部署
       window.open('https://vercel.com/docs/concepts/projects/environment-variables#redeploying-to-apply-changes', '_blank');
     }
   };
@@ -102,15 +101,12 @@ export const Home: React.FC = () => {
         setIsAuthorized(false);
         setIsDeployingInfo(true);
       } else if (msg.includes("Requested entity was not found.")) {
-        // According to GenAI guidelines: reset key selection state if entity not found.
         if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
           await window.aistudio.openSelectKey();
           setIsAuthorized(true);
         }
-      } else if (msg.includes("404") || msg.includes("not found")) {
-        alert('请求失败：请确保您的 API 密钥所属项目已开启 Google Cloud 计费（Billing），Gemini 3 Pro 模型需要付费项目支持。');
       } else {
-        alert('显影失败，请检查网络连接或尝试刷新页面。');
+        alert('显影失败：请检查 API 密钥是否有效并已开启计费（Billing）。');
       }
     } finally {
       setIsDeveloping(false);
@@ -139,9 +135,9 @@ export const Home: React.FC = () => {
         <div className="mt-8 max-w-md text-neutral-500 text-[12px] tracking-wide mb-12 leading-relaxed">
           {isDeployingInfo ? (
             <div className="border border-[#E30613]/30 p-6 bg-[#E30613]/5 rounded-sm">
-              <p className="text-white font-bold mb-4 uppercase tracking-[0.2em]">⚠️ 需要重新部署 / ACTION REQUIRED</p>
+              <p className="text-white font-bold mb-4 uppercase tracking-[0.2em]">需要重新部署 / ACTION REQUIRED</p>
               <p className="mb-4">检测到您已在 Vercel 配置密钥，但当前网页仍在使用旧版本。</p>
-              <p className="text-[#E30613] font-black">请前往 Vercel 项目控制台 -> Deployments -> 点击最新一次部署旁边的三个点 -> 选择 "Redeploy"。</p>
+              <p className="text-[#E30613] font-black">请前往控制台 &rarr; 部署 &rarr; 点击最近一次部署 &rarr; 选择 重新部署。</p>
             </div>
           ) : (
             <>
@@ -158,7 +154,7 @@ export const Home: React.FC = () => {
           onClick={handleOpenKeySelector} 
           className="h-16 px-12 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase active:scale-95 shadow-2xl"
         >
-          {isDeployingInfo ? "查看部署指引 / HOW TO REDEPLOY" : "连接密钥 / CONNECT KEY"}
+          {isDeployingInfo ? "查看部署指引" : "连接密钥 / CONNECT KEY"}
         </button>
       </div>
     );
