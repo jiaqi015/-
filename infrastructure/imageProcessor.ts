@@ -38,10 +38,14 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // 获取最新的 API KEY，通过 Vite define 注入
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error("API_KEY_MISSING");
+    }
     
-    // 1. 获取并预缩放图像数据，防止 Payload 过大导致的 500 错误
-    // 强制缩放至长边 1536px 是为了确保 Gemini-3-pro-image-preview 模型在处理复杂 Prompt 时不超时
+    const ai = new GoogleGenAI({ apiKey });
+    
     const { base64Data, mimeType, width, height } = await this.getOptimizedImageData(imageSource);
     const aspectRatio = this.getClosestAspectRatio(width, height);
 
@@ -152,7 +156,7 @@ export class GeminiImageProcessor implements IImageProcessor {
         if (!ctx) return reject(new Error("Canvas context failed"));
         
         ctx.drawImage(imageElement, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85); // 使用 jpeg 以减小传输体积
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85); 
         const base64 = dataUrl.split(',')[1];
         
         resolve({
