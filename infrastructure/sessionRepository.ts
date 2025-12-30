@@ -2,65 +2,89 @@
 import { IDevelopSessionRepository } from '../application/ports';
 import { DevelopSession } from '../domain/types';
 
-/**
- * 稳健型底片仓库 v2.0
- * 策略：本地索引 + 云端影像
- * 解决客户端调用 Vercel Blob list() 产生的 CORS 报错
- */
-export class VercelBlobSessionRepository implements IDevelopSessionRepository {
-  private readonly LOCAL_KEY = 'leifi_v2_sessions';
+export class LocalSessionRepository implements IDevelopSessionRepository {
+  private readonly DB_NAME = 'LeifiLabDB';
+  private readonly STORE_NAME = 'sessions';
+  private readonly DB_VERSION = 1;
+
+  private async getDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+        if (!db.objectStoreNames.contains(this.STORE_NAME)) {
+          db.createObjectStore(this.STORE_NAME, { keyPath: 'sessionId' });
+        }
+      };
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
 
   async save(session: DevelopSession): Promise<void> {
-    // 始终保存到本地索引，确保即时可用
-    this.saveToLocal(session);
-    console.log('底片索引已更新');
+    const db = await this.getDB();
+    
+    // 1. 先进行历史记录清理逻辑（独立于保存事务之外）
+    const all = await this.getAll();
+    if (all.length >= 20) {
+      const sorted = [...all].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      const oldest = sorted[0];
+      await this.delete(oldest.sessionId);
+    }
+
+    // 2. 此时所有异步前置工作已完成，启动正式的保存事务
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(this.STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(this.STORE_NAME);
+      
+      const request = store.put(session);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      
+      // 监听事务整体状态以防万一
+      transaction.onerror = () => reject(new Error('IndexedDB Transaction Error'));
+    });
+  }
+
+  private async delete(id: string): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(this.STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(this.STORE_NAME);
+      const request = store.delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
   }
 
   async getById(id: string): Promise<DevelopSession | undefined> {
-    const sessions = this.getFromLocal();
-    return sessions.find(s => s.sessionId === id);
+    const db = await this.getDB();
+    const transaction = db.transaction(this.STORE_NAME, 'readonly');
+    const store = transaction.objectStore(this.STORE_NAME);
+    return new Promise((resolve, reject) => {
+      const request = store.get(id);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
   }
 
   async getAll(): Promise<DevelopSession[]> {
-    // 仅从本地索引读取，避开云端 list() 的跨域限制和高延迟
-    return this.getFromLocal().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  }
-
-  private saveToLocal(session: DevelopSession) {
-    try {
-      const sessions = this.getFromLocal();
-      const index = sessions.findIndex(s => s.sessionId === session.sessionId);
-      
-      const sessionToSave = {
-        ...session,
-        createdAt: session.createdAt instanceof Date ? session.createdAt.toISOString() : session.createdAt
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(this.STORE_NAME, 'readonly');
+      const store = transaction.objectStore(this.STORE_NAME);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const results = (request.result || []) as DevelopSession[];
+        resolve(results.map(s => ({
+          ...s,
+          createdAt: s.createdAt instanceof Date ? s.createdAt : new Date(s.createdAt)
+        })));
       };
-
-      if (index > -1) {
-        sessions[index] = sessionToSave as any;
-      } else {
-        sessions.unshift(sessionToSave as any);
-      }
-      
-      // 仅保留最近 30 条记录，防止 LocalStorage 溢出
-      localStorage.setItem(this.LOCAL_KEY, JSON.stringify(sessions.slice(0, 30)));
-    } catch (e) {
-      console.error('本地索引保存失败:', e);
-    }
-  }
-
-  private getFromLocal(): DevelopSession[] {
-    try {
-      const data = localStorage.getItem(this.LOCAL_KEY);
-      if (!data) return [];
-      const parsed = JSON.parse(data);
-      return parsed.map((s: any) => ({
-        ...s,
-        createdAt: new Date(s.createdAt)
-      }));
-    } catch (e) {
-      console.warn('解析本地索引失败，已重置');
-      return [];
-    }
+      request.onerror = () => reject(request.error);
+    });
   }
 }

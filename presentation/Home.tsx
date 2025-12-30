@@ -8,6 +8,9 @@ import { ExifRibbon } from './components/ExifRibbon';
 import { HistoryStrip } from './components/HistoryStrip';
 import { developPhotoUseCase, cameraCatalogUseCase, downloadAppService } from '../infrastructure/container';
 import { CameraProfile, DevelopSession } from '../domain/types';
+import { LocalSessionRepository } from '../infrastructure/sessionRepository';
+
+const sessionRepo = new LocalSessionRepository();
 
 declare global {
   interface AIStudio {
@@ -29,7 +32,6 @@ export const Home: React.FC = () => {
   const [showSource, setShowSource] = useState(false);
   const [history, setHistory] = useState<DevelopSession[]>([]);
   const [profiles] = useState<CameraProfile[]>(() => cameraCatalogUseCase.getProfiles());
-  const [isCloudEnabled, setIsCloudEnabled] = useState(false);
   
   const [infoModalSession, setInfoModalSession] = useState<DevelopSession | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
@@ -38,19 +40,12 @@ export const Home: React.FC = () => {
   const timerRef = useRef<number | null>(null);
 
   const loadHistory = async () => {
-    try {
-      const sessions = await (developPhotoUseCase as any).sessionRepo.getAll();
-      setHistory(sessions);
-    } catch (e) {
-      console.error("加载历史底片失败", e);
-    }
+    const sessions = await sessionRepo.getAll();
+    setHistory(sessions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
   };
 
   useEffect(() => {
     const checkAuth = async () => {
-      const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
-      setIsCloudEnabled(!!(blobToken && blobToken.length > 0));
-
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         if (hasKey) { setIsAuthorized(true); return; }
@@ -92,11 +87,11 @@ export const Home: React.FC = () => {
       loadHistory();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
-      console.error("显影错误:", error);
+      console.error("Development Error:", error);
       const msg = error.message || "";
-      if (msg.includes("API key expired")) { setErrorMessage("显影密钥已过期"); setIsAuthorized(false); }
+      if (msg.includes("API key expired")) { setErrorMessage("密钥已过期"); setIsAuthorized(false); }
       else if (msg.includes("Requested entity was not found.")) { if (window.aistudio) await window.aistudio.openSelectKey(); }
-      else alert(`显影失败: ${error.message || '系统繁忙，请稍后再试'}`);
+      else alert('显影失败：请检查网络或 API 状态。');
     } finally {
       setIsDeveloping(false);
     }
@@ -106,7 +101,7 @@ export const Home: React.FC = () => {
     const target = session || result?.session;
     const url = session?.outputUrl || result?.url;
     if (target && url) {
-      downloadAppService.downloadImage(url, `徕滤_${target.cameraName.replace(/\s+/g, '_')}_${Math.round(target.outputMeta.intensity*100)}.png`);
+      downloadAppService.downloadImage(url, `Leifi_${target.cameraName.replace(/\s+/g, '_')}_${Math.round(target.outputMeta.intensity*100)}.png`);
     }
   };
 
@@ -122,7 +117,7 @@ export const Home: React.FC = () => {
       setCopyFeedback(true);
       setTimeout(() => setCopyFeedback(false), 2000);
     } catch (err) {
-      console.error('复制失败: ', err);
+      console.error('Failed to copy: ', err);
     }
   };
 
@@ -131,10 +126,10 @@ export const Home: React.FC = () => {
       <div className="min-h-screen bg-[#121212] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
         <Logo />
         <div className="mt-12 p-10 border border-neutral-800 bg-[#161616] max-w-sm shadow-2xl">
-           <p className="text-white font-black mb-6 tracking-[0.3em] uppercase text-[11px]">正在初始化显影环境</p>
+           <p className="text-white font-black mb-6 tracking-[0.3em] uppercase text-[11px]">连接神经引擎</p>
            {errorMessage && <p className="text-[#E30613] text-[10px] mb-6 font-black tracking-widest">{errorMessage}</p>}
-           <button onClick={() => window.aistudio?.openSelectKey().then(() => setIsAuthorized(true))} className="w-full h-16 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase text-[12px] active:scale-95">开启显影权限</button>
-           <p className="mt-6 text-[8px] text-neutral-600 font-bold tracking-[0.2em] uppercase">徕滤实验室 / 神经光学重构系统</p>
+           <button onClick={() => window.aistudio?.openSelectKey().then(() => setIsAuthorized(true))} className="w-full h-16 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase text-[12px] active:scale-95">开始显影</button>
+           <p className="mt-6 text-[8px] text-neutral-600 font-bold tracking-[0.2em] uppercase">徕滤实验室精密光学仪器</p>
         </div>
       </div>
     );
@@ -145,23 +140,16 @@ export const Home: React.FC = () => {
       <div className="max-w-7xl mx-auto w-full px-6 py-8 md:px-12 md:py-16 flex flex-col gap-12 md:gap-20">
         <header className="flex items-end justify-between border-b border-neutral-900 pb-12">
           <Logo />
-          <div className="text-right hidden sm:flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${isCloudEnabled ? 'bg-[#E30613] shadow-[0_0_8px_rgba(227,6,19,0.8)]' : 'bg-neutral-700'}`}></div>
-              <span className="text-[10px] text-neutral-500 uppercase tracking-[0.5em] font-black">
-                {isCloudEnabled ? '全球云端同步已开启' : '本地显影模式'}
-              </span>
-            </div>
-            <span className="text-[8px] text-neutral-800 font-mono tracking-widest uppercase">
-              {isCloudEnabled ? 'Synced with Vercel Blob' : 'Standalone Local Session'}
-            </span>
+          <div className="text-right hidden sm:flex flex-col items-end gap-1">
+            <span className="text-[10px] text-neutral-500 uppercase tracking-[0.5em] font-black">神经光学重构引擎</span>
+            <span className="text-[8px] text-neutral-800 font-mono tracking-widest">版本 3.2.1 / 生产环境稳定版</span>
           </div>
         </header>
 
         <section className="relative w-full">
           {result && !showSource ? (
             <div className="max-w-5xl mx-auto transition-all duration-700 animate-fade-in">
-               <ExifRibbon session={result.session} imageUrl={result.url} onCopyPrompt={handleCopyPrompt} />
+               <ExifRibbon session={result.session} imageUrl={result.url} />
             </div>
           ) : (
             <div className="bg-[#161616] border border-neutral-900 shadow-2xl rounded-sm overflow-hidden aspect-video min-h-[400px] transition-all duration-700 animate-fade-in">
@@ -177,7 +165,7 @@ export const Home: React.FC = () => {
               >
                 <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 mr-3 shadow-[0_0_8px_rgba(227,6,19,0.5)] ${showSource ? 'bg-neutral-400' : 'bg-[#E30613]'}`}></div>
                 <span className={`text-[10px] font-black tracking-[0.2em] uppercase transition-colors ${showSource ? 'text-neutral-400 group-hover:text-black' : 'text-white group-hover:text-black'}`}>
-                  {showSource ? '切换显影' : '切换原图'}
+                  {showSource ? '预览显影' : '切换原图'}
                 </span>
               </button>
             </div>
@@ -188,7 +176,7 @@ export const Home: React.FC = () => {
               <div className="text-[64px] font-mono font-black text-white tabular-nums tracking-tighter mb-2">
                 {elapsedTime.toFixed(1)}<span className="text-[#E30613] text-2xl ml-1 font-sans">秒</span>
               </div>
-              <div className="text-[10px] tracking-[1.2em] text-neutral-500 uppercase font-black pl-[1.2em]">正在进行神经光学重构模拟...</div>
+              <div className="text-[10px] tracking-[1.2em] text-neutral-500 uppercase font-black pl-[1.2em]">正在进行神经显影模拟...</div>
               <div className="mt-12 w-64 h-px bg-neutral-900 relative overflow-hidden">
                 <div className="absolute inset-0 bg-[#E30613] animate-scan"></div>
               </div>
@@ -267,31 +255,18 @@ export const Home: React.FC = () => {
 
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] font-black text-[#E30613] tracking-[0.3em] uppercase">神经显影指令</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[8px] font-black text-[#E30613] tracking-[0.3em] uppercase">神经显影指令</span>
                     <button 
                       onClick={() => handleCopyPrompt(infoModalSession.outputMeta.promptUsed)}
-                      className={`h-9 px-4 rounded-full text-[10px] font-black transition-all uppercase tracking-widest flex items-center gap-2
-                        ${copyFeedback ? 'bg-[#E30613] text-white' : 'bg-neutral-800 text-neutral-400 hover:bg-white hover:text-black'}`}
+                      className="text-[9px] font-black text-neutral-500 hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2"
                     >
-                      {copyFeedback ? (
-                        <>
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
-                          已复制指令
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-                            <rect x="8" y="2" width="8" height="4" rx="1"/>
-                          </svg>
-                          复制提示词
-                        </>
-                      )}
+                      {copyFeedback ? '已复制' : '复制指令'}
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
                     </button>
                   </div>
-                  <div className="bg-black/60 border border-neutral-800 p-5 rounded-sm relative group">
-                    <p className="text-neutral-400 text-[12px] font-mono leading-relaxed whitespace-pre-wrap selection:bg-white/10">
+                  <div className="bg-black/40 border border-neutral-800 p-4 rounded-sm relative group">
+                    <p className="text-neutral-400 text-[11px] font-mono leading-relaxed whitespace-pre-wrap">
                       {infoModalSession.outputMeta.promptUsed}
                     </p>
                   </div>
@@ -322,7 +297,7 @@ export const Home: React.FC = () => {
                   onClick={() => { handleDownload(infoModalSession); setInfoModalSession(null); }}
                   className="flex-1 h-12 bg-white text-black font-black text-[11px] tracking-[0.4em] uppercase hover:bg-[#E30613] hover:text-white transition-all"
                 >
-                  保存此版本影像
+                  保存此版本
                 </button>
               </div>
             </div>
