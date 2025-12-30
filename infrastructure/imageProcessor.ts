@@ -37,8 +37,12 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
+    // 严格遵循指令：API Key 从 process.env.API_KEY 获取
+    // 通过 vite.config.mjs 的 define 确保这里的引用在运行时是动态的
     const apiKey = process.env.API_KEY;
-    if (!apiKey) {
+    
+    if (!apiKey || apiKey === "") {
+      console.error("Runtime API Key is missing. Ensure Key Selector has been confirmed.");
       throw new Error("API_KEY_MISSING");
     }
     
