@@ -12,16 +12,6 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    target: 'esnext',
-    rollupOptions: {
-      // 标记在 index.html importmap 中定义的模块为外部模块
-      external: [
-        'react',
-        'react-dom',
-        'react/jsx-runtime',
-        '@google/genai',
-        '@vercel/blob'
-      ],
-    }
+    target: 'esnext'
   }
 });
