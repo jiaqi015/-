@@ -4,7 +4,6 @@ import { Uploader } from './components/Uploader';
 import { CameraPicker } from './components/CameraPicker';
 import { developPhotoUseCase, cameraCatalogUseCase, downloadAppService } from '../infrastructure/container';
 import { CameraProfile, DevelopSession } from '../domain/types';
-import { EnvService } from '../infrastructure/envService';
 
 export const Home: React.FC = () => {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
@@ -15,16 +14,22 @@ export const Home: React.FC = () => {
   const [profiles] = useState<CameraProfile[]>(() => cameraCatalogUseCase.getProfiles());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
-  // 初始状态检查密钥
-  const [hasKey, setHasKey] = useState<boolean | null>(EnvService.hasValidKey());
+  // 按照规范检测是否有 Key，如果没有则显示连接界面
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // 如果初始未检测到（极其罕见），则尝试二次确认
-    if (!hasKey) {
-      setHasKey(EnvService.hasValidKey());
-    }
-  }, [hasKey]);
+    const checkAuth = async () => {
+      if ((window as any).aistudio) {
+        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+        setIsAuthorized(hasKey);
+      } else {
+        // 如果不在 AI Studio 环境，且没有预设 env，默认也需要授权逻辑
+        setIsAuthorized(!!process.env.API_KEY);
+      }
+    };
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     if (isDeveloping) {
@@ -47,7 +52,10 @@ export const Home: React.FC = () => {
   const handleOpenKeySelector = async () => {
     if ((window as any).aistudio) {
       await (window as any).aistudio.openSelectKey();
-      setHasKey(true);
+      // 竞态处理：触发后直接假设成功并进入应用
+      setIsAuthorized(true);
+    } else {
+      alert("请在 Vercel 环境变量中配置 API_KEY，或在支持的 AI 平台中运行。");
     }
   };
 
@@ -66,9 +74,10 @@ export const Home: React.FC = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error(error);
-      if (error.message === 'API_KEY_INVALID' || error.message === 'API_KEY_MISSING') {
-        alert('API 密钥无效或配置错误。');
-        setHasKey(false);
+      // 如果报错 Requested entity was not found，说明 Key 无效，重置授权状态
+      if (error.message?.includes("not found") || error.message?.includes("PERMISSION_DENIED") || error.message?.includes("leaked")) {
+        alert('API 密钥已过期或被封禁，请重新选择。');
+        setIsAuthorized(false);
       } else {
         alert('AI 显影引擎遇到阻碍，请检查网络或配置。');
       }
@@ -92,21 +101,21 @@ export const Home: React.FC = () => {
     setPreviewImage(null);
   };
 
-  if (hasKey === false) {
+  if (!isAuthorized) {
     return (
       <div className="min-h-screen bg-[#121212] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
         <Logo />
-        <div className="mt-8 max-w-sm text-neutral-500 text-[12px] tracking-wide mb-8">
-          密钥失效。请重新部署应用或在当前会话中连接。
+        <div className="mt-8 max-w-sm text-neutral-500 text-[12px] tracking-wide mb-8 leading-relaxed">
+          为了开启 2K 高清神经合成引擎，您需要连接自己的 Google Gemini API 密钥。
+          <br/>
+          请确保您的项目已开启 <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="text-white underline">付费账单</a> 以支持 Pro 模型。
         </div>
-        <button onClick={handleOpenKeySelector} className="h-16 px-12 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase">
-          重新连接 / RECONNECT
+        <button onClick={handleOpenKeySelector} className="h-16 px-12 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase active:scale-95">
+          连接密钥 / CONNECT KEY
         </button>
       </div>
     );
   }
-
-  if (hasKey === null) return <div className="min-h-screen bg-[#121212] flex items-center justify-center"><div className="w-12 h-px bg-[#E30613] animate-pulse"></div></div>;
 
   return (
     <div className="min-h-screen bg-[#121212] text-neutral-200 flex flex-col selection:bg-[#E30613]/30 overflow-x-hidden">

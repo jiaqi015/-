@@ -24,7 +24,7 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 按照规范，直接使用注入的 process.env.API_KEY
+    // 关键：每次处理请求时创建新实例，确保使用最新的 process.env.API_KEY
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const { base64Data, mimeType, width, height } = await this.getOptimizedImageData(imageSource);
@@ -41,7 +41,7 @@ export class GeminiImageProcessor implements IImageProcessor {
           ],
         },
         config: {
-          imageConfig: { aspectRatio: aspectRatio, imageSize: "2K" }
+          imageConfig: { aspectRatio: aspectRatio, imageSize: "1K" }
         }
       });
 
@@ -68,7 +68,8 @@ export class GeminiImageProcessor implements IImageProcessor {
         blob: new Blob([new Uint8Array(atob(outputBase64).split('').map(c => c.charCodeAt(0)))], { type: 'image/png' })
       };
     } catch (error: any) {
-      if (error.message?.includes("Requested entity was not found")) throw new Error("API_KEY_INVALID");
+      // 捕获 API 报错并规范化，便于前端 UI 提示重选 Key
+      console.error("Gemini API Error:", error);
       throw error;
     }
   }

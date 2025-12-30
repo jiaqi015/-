@@ -14,6 +14,6 @@ export class EnvService {
    */
   static hasValidKey(): boolean {
     const key = this.getApiKey();
-    return typeof key === 'string' && key.length > 20;
+    return typeof key === 'string' && key.length > 10;
   }
 }
