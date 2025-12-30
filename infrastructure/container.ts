@@ -3,13 +3,13 @@ import { DevelopPhotoUseCase, CameraCatalogUseCase } from '../application/useCas
 import { GeminiImageProcessor } from './imageProcessor';
 import { StaticCameraCatalog } from './cameraCatalog';
 import { LocalDownloadService } from './downloadService';
-import { LocalSessionRepository } from './sessionRepository';
+import { VercelBlobSessionRepository } from './sessionRepository';
 
 // 基础设施实例化
 const imageProcessor = new GeminiImageProcessor();
 const cameraCatalog = new StaticCameraCatalog();
 const downloadService = new LocalDownloadService();
-const sessionRepo = new LocalSessionRepository();
+const sessionRepo = new VercelBlobSessionRepository(); // 切换为云端全局仓库
 
 // 应用层用例组装 (Assembly)
 export const developPhotoUseCase = new DevelopPhotoUseCase(imageProcessor, cameraCatalog, sessionRepo);

@@ -1,19 +1,21 @@
+
 import { IImageProcessor } from '../application/ports';
 import { CameraProfile, DevelopResult } from '../domain/types';
 import { GoogleGenAI } from "@google/genai";
+import { put } from "@vercel/blob";
 
 type SupportedAspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 
 class PromptComposer {
   static compose(profile: CameraProfile, intensity: number): string {
     const { recipe, name } = profile;
-    let prompt = `[CRITICAL DIRECTIVE: NEURAL OPTICAL RECONSTRUCTION - PROJECT ${name}]\n`;
-    prompt += `PRIMARY ENGINE: ARTISTIC SYNTHESIS AT ${Math.round(intensity * 100)}% INTENSITY.\n\n`;
-    prompt += `CORE MANIFESTO:\n${profile.promptTemplate.trim()}\n\n`;
-    prompt += `HARDWARE SPECIFICATIONS:\n`;
-    prompt += `- EMULATED LIGHT PATH: ${recipe.exposure > 0 ? 'Overexposed' : 'Underexposed'} by ${Math.abs(recipe.exposure)} stops.\n`;
-    prompt += `- SIGNAL NOISE: ${recipe.grainAmount > 20 ? 'High grain' : 'Low noise'}.\n`;
-    if (recipe.grayscale) prompt += `4. MONOCHROMATIC DOMAIN\n`;
+    let prompt = `[核心指令：神经光学重构 - 项目 ${name}]\n`;
+    prompt += `主引擎：艺术合成，显影强度 ${Math.round(intensity * 100)}%。\n\n`;
+    prompt += `核心章程：\n${profile.promptTemplate.trim()}\n\n`;
+    prompt += `硬件规格说明：\n`;
+    prompt += `- 模拟光路：${recipe.exposure > 0 ? '过曝' : '欠曝'} ${Math.abs(recipe.exposure)} 档。\n`;
+    prompt += `- 信号噪点：${recipe.grainAmount > 20 ? '高颗粒感' : '低噪点控制'}。\n`;
+    if (recipe.grayscale) prompt += `4. 单色域控制\n`;
     return prompt;
   }
 }
@@ -24,15 +26,12 @@ export class GeminiImageProcessor implements IImageProcessor {
     profile: CameraProfile,
     intensity: number
   ): Promise<DevelopResult> {
-    // 强制从 process.env.API_KEY 获取，这是由构建工具在部署时注入的
     const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
-      console.error("Environment Variable API_KEY is missing or undefined.");
-      throw new Error("MISSING_API_KEY");
+      throw new Error("缺少显影密钥");
     }
 
-    // 每次请求前实例化 GoogleGenAI 以确保使用最新的上下文 Key
     const ai = new GoogleGenAI({ apiKey });
     
     const { base64Data, mimeType, width, height } = await this.getOptimizedImageData(imageSource);
@@ -62,23 +61,40 @@ export class GeminiImageProcessor implements IImageProcessor {
         }
       }
 
-      if (!outputBase64) throw new Error("MODEL_EMPTY_RESPONSE");
+      if (!outputBase64) throw new Error("引擎响应为空");
+
+      // 将生成的图片上传至 Vercel Blob 实现“全局持久化”
+      const sessionId = `sess_${Math.random().toString(36).substr(2, 9)}`;
+      const imageBlob = this.base64ToBlob(outputBase64, 'image/png');
+      
+      const { url: cloudUrl } = await put(`leifi-lab/outputs/${sessionId}.png`, imageBlob, {
+        access: 'public',
+      });
 
       return {
         session: {
-          sessionId: `sess_${Math.random().toString(36).substr(2, 9)}`,
+          sessionId,
           cameraId: profile.id,
           cameraName: profile.name,
           createdAt: new Date(),
           outputMeta: { width, height, intensity, promptUsed: fullPrompt },
-          outputUrl: `data:image/png;base64,${outputBase64}`
+          outputUrl: cloudUrl // 使用云端永久链接
         },
-        blob: new Blob([new Uint8Array(atob(outputBase64).split('').map(c => c.charCodeAt(0)))], { type: 'image/png' })
+        blob: imageBlob
       };
     } catch (error: any) {
-      console.error("Gemini API Error Detail:", error);
+      console.error("Gemini 显影错误:", error);
       throw error;
     }
+  }
+
+  private base64ToBlob(base64: string, type: string): Blob {
+    const binary = atob(base64);
+    const array = [];
+    for (let i = 0; i < binary.length; i++) {
+      array.push(binary.charCodeAt(i));
+    }
+    return new Blob([new Uint8Array(array)], { type });
   }
 
   private getClosestAspectRatio(w: number, h: number): SupportedAspectRatio {
@@ -102,7 +118,7 @@ export class GeminiImageProcessor implements IImageProcessor {
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
-        if (!ctx) return reject(new Error("Canvas failed"));
+        if (!ctx) return reject(new Error("画布初始化失败"));
         ctx.drawImage(imageElement, 0, 0, w, h);
         resolve({ base64Data: canvas.toDataURL('image/jpeg', 0.85).split(',')[1], mimeType: 'image/jpeg', width: w, height: h });
       };
