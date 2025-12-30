@@ -1,10 +1,10 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
 import { Uploader } from './components/Uploader';
 import { CameraPicker } from './components/CameraPicker';
 import { developPhotoUseCase, cameraCatalogUseCase, downloadAppService } from '../infrastructure/container';
 import { CameraProfile, DevelopSession } from '../domain/types';
+import { EnvService } from '../infrastructure/envService';
 
 export const Home: React.FC = () => {
   const [sourceImage, setSourceImage] = useState<string | null>(null);
@@ -15,20 +15,29 @@ export const Home: React.FC = () => {
   const [profiles] = useState<CameraProfile[]>(() => cameraCatalogUseCase.getProfiles());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   
+  // 状态改为 false，除非检测到 Key
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const checkApiKey = async () => {
+      // 1. 检查环境变量中是否已经有 Key
+      if (EnvService.hasValidKey()) {
+        setHasKey(true);
+        return;
+      }
+
+      // 2. 检查 aistudio 状态
       try {
         if ((window as any).aistudio) {
           const selected = await (window as any).aistudio.hasSelectedApiKey();
           setHasKey(selected);
         } else {
-          setHasKey(true);
+          // 如果既没环境变量又没 aistudio，则显示连接按钮
+          setHasKey(false);
         }
       } catch (e) {
-        setHasKey(true);
+        setHasKey(false);
       }
     };
     checkApiKey();
@@ -55,8 +64,11 @@ export const Home: React.FC = () => {
   const handleOpenKeySelector = async () => {
     if ((window as any).aistudio) {
       await (window as any).aistudio.openSelectKey();
+      setHasKey(true);
+    } else {
+      // 提示用户在 Vercel 设置环境变量
+      alert("请在 Vercel 项目设置中添加名为 API_KEY 的环境变量并重新部署。");
     }
-    setHasKey(true);
   };
 
   const handleUpload = (file: File) => {
@@ -74,10 +86,8 @@ export const Home: React.FC = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error(error);
-      if (error.message === 'API_KEY_INVALID' && (window as any).aistudio) {
+      if (error.message === 'API_KEY_INVALID' || error.message === 'API_KEY_MISSING') {
         setHasKey(false);
-        await (window as any).aistudio.openSelectKey();
-        setHasKey(true);
       } else {
         alert('AI 显影引擎遇到阻碍，请检查配置。');
       }
@@ -106,7 +116,7 @@ export const Home: React.FC = () => {
       <div className="min-h-screen bg-[#121212] flex flex-col items-center justify-center p-8 text-center animate-fade-in">
         <Logo />
         <div className="mt-8 max-w-sm text-neutral-500 text-[12px] tracking-wide mb-8">
-          本应用需要连接 API 密钥以调用 Gemini 3 Pro 高级显影引擎。
+          本应用需要连接 API 密钥。你可以在 Vercel 设置环境变量 `API_KEY`，或者点击下方按钮。
         </div>
         <button onClick={handleOpenKeySelector} className="h-16 px-12 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase">
           连接密钥 / CONNECT
@@ -120,7 +130,6 @@ export const Home: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#121212] text-neutral-200 flex flex-col selection:bg-[#E30613]/30 overflow-x-hidden">
       <div className="max-w-6xl mx-auto w-full px-6 py-8 md:px-12 md:py-16 flex flex-col gap-12 md:gap-24">
-        
         <header className="flex items-end justify-between border-b border-neutral-900 pb-12">
           <Logo />
           <div className="text-right hidden sm:block">
@@ -128,28 +137,22 @@ export const Home: React.FC = () => {
           </div>
         </header>
 
-        {/* 核心对称視图区域 */}
         <section className={`relative w-full bg-[#161616] border border-neutral-900 shadow-2xl rounded-sm overflow-hidden transition-all duration-700
           ${result ? 'min-h-[400px]' : 'aspect-video min-h-[350px] md:min-h-[500px]'}`}>
           
           {result ? (
             <div className="grid grid-cols-1 md:grid-cols-2 w-full h-full bg-neutral-900 gap-[1px]">
-               {/* 原始影像沙箱 */}
                <div className="relative aspect-auto md:h-[600px] flex items-center justify-center group cursor-zoom-in bg-black overflow-hidden" onClick={() => setPreviewImage(sourceImage)}>
                  <div className="absolute inset-0 p-10 flex items-center justify-center">
                    <img src={sourceImage!} className="max-w-full max-h-full object-contain transition-transform duration-700 group-hover:scale-[1.02]" alt="Original" />
                  </div>
                  <div className="absolute top-6 left-6 text-[8px] font-black tracking-[0.4em] text-white/30 uppercase z-20">原始影像 / Source</div>
-                 <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors z-10"></div>
                </div>
-               
-               {/* 显影影像沙箱 */}
                <div className="relative aspect-auto md:h-[600px] flex items-center justify-center group cursor-zoom-in bg-black border-t md:border-t-0 md:border-l border-neutral-900 overflow-hidden" onClick={() => setPreviewImage(result.url)}>
                  <div className="absolute inset-0 p-10 flex items-center justify-center">
                    <img src={result.url} className="max-w-full max-h-full object-contain animate-fade-in transition-transform duration-700 group-hover:scale-[1.02]" alt="Developed" />
                  </div>
                  <div className="absolute top-6 left-6 text-[8px] font-black tracking-[0.4em] text-[#E30613] uppercase z-20">AI 显影 / Developed</div>
-                 <div className="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors z-10"></div>
                </div>
             </div>
           ) : (
@@ -185,7 +188,6 @@ export const Home: React.FC = () => {
                 保存影像 / SAVE
               </button>
             )}
-            
             <div className="flex gap-4">
                {result && (
                 <button onClick={() => setResult(null)} className="px-10 h-20 border border-neutral-800 text-neutral-400 text-[10px] font-black tracking-[0.3em] hover:bg-neutral-900 transition-all uppercase">
@@ -199,7 +201,6 @@ export const Home: React.FC = () => {
           </div>
         </section>
 
-        {/* 动态内容区块：显影前显示 Picker，显影后显示风格解析 */}
         {result ? (
           <section className="animate-fade-in grid md:grid-cols-[1fr,2fr] gap-12 pt-12 border-t border-neutral-900">
             <div className="flex flex-col gap-10">
@@ -214,10 +215,6 @@ export const Home: React.FC = () => {
                     <span className="text-[9px] text-neutral-700 uppercase font-mono">光学模拟预设</span>
                     <span className="text-[18px] font-bold text-white uppercase">{result.session.cameraName}</span>
                   </div>
-                </div>
-                <div className="flex flex-col gap-1 pl-16">
-                  <span className="text-[9px] text-neutral-700 uppercase font-mono">神经算力引擎</span>
-                  <span className="text-[14px] font-bold text-[#E30613] uppercase">Gemini 3 Pro Vision</span>
                 </div>
               </div>
             </div>
