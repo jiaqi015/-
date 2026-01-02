@@ -140,10 +140,6 @@ export const Home: React.FC = () => {
       <div className="max-w-7xl mx-auto w-full px-6 py-8 md:px-12 md:py-16 flex flex-col gap-12 md:gap-20">
         <header className="flex items-end justify-between border-b border-neutral-900 pb-12">
           <Logo />
-          <div className="text-right hidden sm:flex flex-col items-end gap-1">
-            <span className="text-[10px] text-neutral-500 uppercase tracking-[0.5em] font-black">神经光学重构引擎</span>
-            <span className="text-[8px] text-neutral-800 font-mono tracking-widest">版本 3.2.1 / 生产环境稳定版</span>
-          </div>
         </header>
 
         <section className="relative w-full">
