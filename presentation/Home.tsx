@@ -460,7 +460,7 @@ export const Home: React.FC = () => {
                       <span className={`text-[10px] font-black tracking-[0.2em] uppercase transition-colors ${developMode === 'DIRECT' ? 'text-white' : 'text-neutral-600'}`}>
                         AIGC 快显
                       </span>
-                      <span className="text-[7px] font-mono opacity-40 uppercase tracking-tighter">约 15-25秒</span>
+                      <span className="text-[11px] font-mono opacity-80 uppercase tracking-tighter transition-colors group-hover:text-white">约 15-25秒</span>
                     </div>
                   </button>
                   <div className="w-px h-8 bg-neutral-800 mx-1"></div>
@@ -474,7 +474,7 @@ export const Home: React.FC = () => {
                       <span className={`text-[10px] font-black tracking-[0.2em] uppercase transition-colors ${developMode === 'AGENTIC' ? 'text-[#D4AF37]' : 'text-neutral-600'}`}>
                         Agent 大师
                       </span>
-                      <span className="text-[7px] font-mono opacity-40 uppercase tracking-tighter">约 45-90秒</span>
+                      <span className="text-[11px] font-mono opacity-80 uppercase tracking-tighter transition-colors group-hover:text-white">约 45-90秒</span>
                     </div>
                   </button>
                 </div>
