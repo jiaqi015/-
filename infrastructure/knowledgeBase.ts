@@ -1,7 +1,6 @@
 
 /**
- * 徕滤实验室摄影美学知识库 v9.0 (High-Density RAG Core)
- * 顶级架构师与摄影师联合调优版
+ * 徕滤实验室摄影美学知识库 v10.0 (Ultimate Encyclopedic RAG Core)
  */
 export const PHOTOGRAPHY_KNOWLEDGE_BASE = {
   OPTICAL_PHYSICS: [
@@ -25,7 +24,11 @@ export const PHOTOGRAPHY_KNOWLEDGE_BASE = {
     "变焦镜头的呼吸效应：在显影重构空间感时，需微调透视关系以模拟物理对焦时的焦距微动。",
     "大画幅镜头的像圈 (Image Circle)：提供远超传感器尺寸的光学覆盖，显影时应保留其极致平坦的边缘解析力。",
     "APO (复消色差) 设计：彻底校准红绿蓝三色焦点，消除一切紫边，是现代高动态范围显影的物理前提。",
-    "超广角镜头的径向拉伸：模拟物理透视畸变，需通过坐标映射确保主体比例的视觉逻辑正确。"
+    "超广角镜头的径向拉伸：模拟物理透视畸变，需通过坐标映射确保主体比例的视觉逻辑正确。",
+    "Angenieux 电影镜头的“柔：模拟其独特的低反差和奶油般的肤色再现，适合怀旧电影感显影。",
+    "Cooke Look：模拟英国库克镜头特有的平滑焦外和极高的肤色真实感，这种‘立体感’源于物理对焦平面微弱的径向偏移。",
+    "Kinoptik 的梦幻色散：这种昂贵的法国电影镜头在全开光圈时会有迷人的色散现象，模拟其蓝紫色边缘溢出。",
+    "德系 vs 日系镜头发色：德系偏向蓝绿通道的物理沉稳，日系则在暖黄通道有更轻盈的透明度。"
   ],
   FILM_EMULSION_SCIENCE: [
     "Kodak Tri-X 400 (400TX) 的卤化银颗粒在冲洗时会形成独特的'云状分布'，其阴影宽容度支撑了马格南式的纪实美学。",
@@ -47,7 +50,11 @@ export const PHOTOGRAPHY_KNOWLEDGE_BASE = {
     "交叉冲洗 (Cross Processing)：用 C-41 冲洗 E-6 胶片，导致强烈的色调倒置和极高反差的超现实色彩。",
     "Polaroid 拍立得的扩散扩散现象：颜料在纸张上的物理渗透，导致边缘锐度呈现出非线性的模糊。",
     "Kodak Ektar 100 的极致细腻：模拟其微小的 T-Grain 晶体结构，适合在大光幅风景显影中使用。",
-    "Ilford Delta 3200 的超粗颗粒：并非噪点，而是物理晶体在高速感光下的团聚效应。"
+    "Ilford Delta 3200 的超粗颗粒：并非噪点，而是物理晶体在高速感光下的团聚效应。",
+    "Kodak Ektachrome 100VS：模拟其‘超饱和’特性，对天空蓝和日落红有物理级别的物理增强。",
+    "Fuji Superia 400 的第四色彩层：模拟其在日光灯下的色彩平衡能力，消除数字传感器的频闪色偏。",
+    "Ferrania P30：意大利经典高反差黑白胶片，模拟其极高的银盐密度和深邃的阴影质感。",
+    "Lomography 色彩偏移：模拟实验性胶片在化学冲洗时的极端色相扭曲和不可预测的漏光效果。"
   ],
   SENSOR_ENGINEERING: [
     "柯达 KAF-18500 CCD 传感器（M9）的响应曲线：红色通道电荷收集深度比 CMOS 深 30%，发色厚重如油画。",
@@ -68,7 +75,11 @@ export const PHOTOGRAPHY_KNOWLEDGE_BASE = {
     "微对比度修复逻辑：在像素级检测对比度梯度，模拟光学镜头对微小纹理的物理刻画能力。",
     "暗电流补偿：在高温环境下，传感器产生的热噪点需通过参考黑电平进行物理剔除。",
     "像素合并 (Pixel Binning)：模拟高像素传感器降采样后的超采样画质，提升边缘的物理连续性。",
-    "色彩空间对齐：将 Adobe RGB 的广色域物理映射至显影流程，确保 10-bit 色深输出的完整性。"
+    "色彩空间对齐：将 Adobe RGB 的广色域物理映射至显影流程，确保 10-bit 色深输出的完整性。",
+    "Foveon X3 传感器：三层硅层感光，没有分色伪影，显影时需模拟其极致的像素锐度和纯净色偏。",
+    "CCD 传感器的溢出 (Blooming)：在强光下，电荷会向相邻像素溢出，形成垂直的物理光斑，这是老数码相机的灵魂。",
+    "摩尔纹 (Moire) 的生成与消除：模拟高频细节与传感器阵列干涉后的彩虹状条纹，体现极致解析力。",
+    "量子噪声 (Shot Noise)：在极暗环境下模拟光子的随机性，而非电路生成的规则噪点。"
   ],
   AESTHETIC_MASTER_STRATEGY: [
     "布列松 (Henri Cartier-Bresson) 纪实策略：强化 11 个 Zone 影调层次，严禁死黑，追求构图的绝对几何平衡。",
@@ -90,7 +101,11 @@ export const PHOTOGRAPHY_KNOWLEDGE_BASE = {
     "萨尔加多 (Sebastião Salgado) 的史诗黑白：模拟胶片极高位深的灰阶，将自然纹理转化为版画般的质感。",
     "拉夫·吉布森 (Ralph Gibson) 的极简阴影：利用大面积的纯黑块来切割画面，模拟物理上的极端减法美学。",
     "现代复古潮流：模拟 2000 年代初期家用数码相机的“CCD 蓝色调”与低像素插值感。",
-    "电影史学策略：模拟戈达尔《筋疲力尽》中的跳接影调，追求色彩的跳动感与非连贯的光学反应。"
+    "电影史学策略：模拟戈达尔《筋疲力尽》中的跳接影调，追求色彩的跳动感与非连贯的光学反应。",
+    "杉本博司 (Hiroshi Sugimoto) 的极简海洋：模拟超长曝光下的时间压缩感，高光与阴影呈现极致的丝滑度。",
+    "荒木经惟 (Nobuyoshi Araki) 的私摄影：色彩呈现不饱和的苍白感，高光略微过曝，模拟某种物理上的脆弱感。",
+    "上田义彦 (Yoshihiko Ueda) 的静谧蓝调：模拟其在森林和室内光影中的冷峻发色，阴影中带有极深的透明感。",
+    "细江英公 (Eikoh Hosoe) 的剧场感：模拟《蔷薇刑》中的强反差和象征性构图，执行极具张力的影调压缩。"
   ]
 };
 
@@ -102,11 +117,9 @@ export class KnowledgeRetrievalService {
     const context: string[] = [];
     const lowerKeywords = keywords.map(k => k.toLowerCase());
 
-    // 顶级检索逻辑：多关键词权重匹配
     Object.entries(PHOTOGRAPHY_KNOWLEDGE_BASE).forEach(([category, data]) => {
       data.forEach(fact => {
         const factLower = fact.toLowerCase();
-        // 匹配逻辑：如果条目包含任何关键词，或者关键词包含类别名
         const isMatch = lowerKeywords.some(k => 
           factLower.includes(k) || category.toLowerCase().includes(k)
         );
@@ -114,15 +127,14 @@ export class KnowledgeRetrievalService {
       });
     });
 
-    // 随机采样与密度控制：大师模式返回更高密度的信息，增加多样性
     if (context.length === 0) {
       return "实验室神经显影协议初始化：正在加载全光谱物理模拟参数与大师级审美启发式逻辑。";
     }
 
-    // 采样前 12 条相关知识点，形成高密度上下文
+    // 随机采样前 15 条相关知识点（增加密度），形成高密度上下文
     return context
       .sort(() => 0.5 - Math.random())
-      .slice(0, 12)
+      .slice(0, 15)
       .map((fact, idx) => `[知识节点 ${idx + 1}] ${fact}`)
       .join("\n");
   }

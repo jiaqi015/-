@@ -6,8 +6,8 @@ import { CameraPicker } from './components/CameraPicker';
 import { IntensitySlider } from './components/IntensitySlider';
 import { ExifRibbon } from './components/ExifRibbon';
 import { HistoryStrip } from './components/HistoryStrip';
-import { developPhotoUseCase, cameraCatalogUseCase, downloadAppService } from '../infrastructure/container';
-import { CameraProfile, DevelopSession, DevelopMode } from '../domain/types';
+import { developPhotoUseCase, cameraCatalogUseCase, downloadAppService, engineController } from '../infrastructure/container';
+import { CameraProfile, DevelopSession, DevelopMode, GroundingSource, EngineProvider } from '../domain/types';
 import { WorkflowStep } from '../application/ports';
 import { LocalSessionRepository } from '../infrastructure/sessionRepository';
 
@@ -23,10 +23,6 @@ declare global {
   }
 }
 
-/**
- * 实验室精密计时器组件
- * 独立维护时间状态，防止父组件频繁重绘，确保日志区不受高频刷新影响
- */
 const LaboratoryTimer: React.FC<{ active: boolean; modeColor: string }> = ({ active, modeColor }) => {
   const [elapsed, setElapsed] = useState(0);
 
@@ -38,7 +34,7 @@ const LaboratoryTimer: React.FC<{ active: boolean; modeColor: string }> = ({ act
     const startTime = Date.now();
     const interval = setInterval(() => {
       setElapsed((Date.now() - startTime) / 1000);
-    }, 50); // 20fps 刷新，确保平滑但不造成系统负担
+    }, 50);
     return () => clearInterval(interval);
   }, [active]);
 
@@ -48,11 +44,10 @@ const LaboratoryTimer: React.FC<{ active: boolean; modeColor: string }> = ({ act
     <div className="flex flex-col items-center gap-2 mb-10 select-none">
       <div className="flex items-center justify-center bg-black/60 border border-white/5 px-12 py-5 rounded-sm backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]">
         <div className="flex items-baseline font-mono font-black tabular-nums tracking-tighter">
-          {/* 字符插槽技术：固定宽度，防止数字变化引起的抖动 */}
           <div className="flex text-[64px] text-white" style={{ textShadow: `0 0 40px ${modeColor}44` }}>
             {timeStr.split('').map((char, i) => (
               <div key={i} className={`${char === '.' ? 'w-[20px]' : 'w-[42px]'} flex justify-center`}>
-                {char}
+                {char}char
               </div>
             ))}
           </div>
@@ -67,10 +62,7 @@ const LaboratoryTimer: React.FC<{ active: boolean; modeColor: string }> = ({ act
   );
 };
 
-/**
- * 技术指令格式化器
- */
-const PromptFormatter: React.FC<{ text: string }> = ({ text }) => {
+const PromptFormatter: React.FC<{ text: string; sources?: GroundingSource[] }> = ({ text, sources }) => {
   const lines = text.split('\n');
   return (
     <div className="flex flex-col gap-4 font-mono text-[11px] leading-relaxed tracking-tight">
@@ -109,6 +101,28 @@ const PromptFormatter: React.FC<{ text: string }> = ({ text }) => {
           </div>
         );
       })}
+
+      {sources && sources.length > 0 && (
+        <div className="mt-6 border-t border-neutral-800 pt-6">
+          <div className="text-white font-black mb-3 text-[12px] uppercase flex items-center gap-2">
+            <span className="w-1 h-3 bg-blue-500" />
+            <span>实验室实时技术溯源</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {sources.map((source, idx) => (
+              <a 
+                key={idx} 
+                href={source.uri} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 underline underline-offset-4 text-[10px] truncate block opacity-70 hover:opacity-100 transition-opacity"
+              >
+                [{idx + 1}] {source.title}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -122,30 +136,29 @@ const WORKFLOW_LABELS: Record<WorkflowStep, string> = {
 
 const DYNAMIC_LOGS: Record<WorkflowStep, string[]> = {
   'ANALYZING_OPTICS': [
-    '正在采样 Bayer 阵列排列...',
+    '正在同步阿里云神经节点...',
     '分析高光区域动态范围溢出...',
-    '识别暗部噪声分布模型...',
     '映射原始光影能量梯度...',
+    '识别暗部噪声分布模型...',
     '检测镜头径向球差残留...'
   ],
   'RETRIEVING_KNOWLEDGE': [
-    '正在检索光学专利库...',
-    '注入 T* 镀膜光谱透射率曲线...',
-    '模拟卤化银颗粒在显影液中的物理反应...',
+    '注入通义万象光谱透射率曲线...',
     '同步实时联网摄影技术文档...',
-    '加载 CCD 传感器非线性色彩映射表...'
+    '模拟卤化银颗粒在显影液中的物理反应...',
+    '加载百炼 CCD 传感器非线性色彩映射表...',
+    '正在检索阿里云摄影美学专利库...'
   ],
   'NEURAL_DEVELOPING': [
-    '重构边缘微对比度梯度...',
+    'Wanx-V2 像素阵列重构中...',
     '注入有机随机颗粒噪声...',
     '校准 Zone System 影调层次...',
     '执行高阶高光滚降映射...',
-    '正在合成中画幅虚化散景过渡...'
+    '正在合成百炼中画幅虚化散景过渡...'
   ],
   'QUALITY_CHECKING': [
     '对比度一致性审计通过...',
     '色温偏差零点校准完成...',
-    '锐度人工痕迹消除逻辑激活...',
     '正在导出 14-bit 高位深显影档案...',
     '准备封装实验室专属 EXIF 证书...'
   ]
@@ -156,7 +169,7 @@ const LAB_INSIGHTS = [
   "Kodak Portra 400 会在红色通道执行非线性去饱和，以保护肤色。",
   "CCD 传感器的魅力在于其色彩通道的电荷收集深度。",
   "经典的‘Leica Glow’是由残留的球面像差带来的氤氲感。",
-  "中画幅相机的虚化过渡比全画幅更加平滑自然。",
+  "中画幅相机的虚化过渡比全画幅更加平幅自然。",
   "蔡司 T* 镀膜通过原子层沉积技术消除了绝大部分鬼影。"
 ];
 
@@ -165,6 +178,7 @@ export const Home: React.FC = () => {
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>('leica-m3-rigid');
   const [intensity, setIntensity] = useState(1.0);
   const [developMode, setDevelopMode] = useState<DevelopMode>('DIRECT');
+  const [engine, setEngine] = useState<EngineProvider>('ALIBABA'); // 默认阿里
   const [isDeveloping, setIsDeveloping] = useState(false);
   const [currentStep, setCurrentStep] = useState<WorkflowStep>('ANALYZING_OPTICS');
   const [result, setResult] = useState<{ session: DevelopSession; url: string } | null>(null);
@@ -185,12 +199,15 @@ export const Home: React.FC = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+      // 检查任意一个 Key 有效即可
+      const googleKey = process.env.API_KEY;
+      const aliKey = process.env.ALIBABA_API_KEY;
+      if ((googleKey && googleKey.length > 5) || (aliKey && aliKey.length > 5)) {
+        setIsAuthorized(true);
+      } else if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
         const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (hasKey) { setIsAuthorized(true); return; }
+        if (hasKey) setIsAuthorized(true);
       }
-      const key = process.env.API_KEY;
-      if (key && key.length > 5) setIsAuthorized(true);
     };
     checkAuth();
     loadHistory();
@@ -198,7 +215,7 @@ export const Home: React.FC = () => {
 
   useEffect(() => {
     if (isDeveloping) {
-      setTelemetryLogs(["实验室系统初始化...", "正在连接神经显影节点..."]);
+      setTelemetryLogs([`实验室 [${engine}] 引擎初始化...`, "正在连接神经显影节点..."]);
       setInsightIndex(Math.floor(Math.random() * LAB_INSIGHTS.length));
       
       const logInterval = window.setInterval(() => {
@@ -218,7 +235,7 @@ export const Home: React.FC = () => {
         clearInterval(insightInterval);
       };
     }
-  }, [isDeveloping, currentStep]);
+  }, [isDeveloping, currentStep, engine]);
 
   const handleUpload = (file: File) => {
     const url = URL.createObjectURL(file);
@@ -240,6 +257,8 @@ export const Home: React.FC = () => {
     if (!sourceImage || !selectedCameraId) return;
     try {
       setIsDeveloping(true);
+      engineController.setEngine(engine); // 切换后端引擎
+      
       const { session } = await developPhotoUseCase.execute(
         sourceImage, 
         selectedCameraId, 
@@ -305,6 +324,21 @@ export const Home: React.FC = () => {
       <div className="max-w-7xl mx-auto w-full px-6 py-2 md:px-12 flex flex-col gap-4 md:gap-6">
         <header className="flex items-end justify-between border-b border-neutral-900 pb-2 mt-4">
           <Logo />
+          {/* 引擎切换器 */}
+          <div className="flex bg-black/50 border border-neutral-800 p-0.5 rounded-sm mb-1">
+             <button 
+              onClick={() => setEngine('ALIBABA')}
+              className={`px-4 py-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${engine === 'ALIBABA' ? 'bg-white text-black' : 'text-neutral-600 hover:text-neutral-400'}`}
+             >
+               Qwen / Wanx
+             </button>
+             <button 
+              onClick={() => setEngine('GOOGLE')}
+              className={`px-4 py-1.5 text-[9px] font-black uppercase tracking-widest transition-all ${engine === 'GOOGLE' ? 'bg-white text-black' : 'text-neutral-600 hover:text-neutral-400'}`}
+             >
+               Gemini
+             </button>
+          </div>
         </header>
 
         <section className="relative w-full">
@@ -345,25 +379,22 @@ export const Home: React.FC = () => {
 
           {isDeveloping && (
             <div className="absolute inset-0 bg-[#0A0A0A]/98 backdrop-blur-3xl flex flex-col items-center justify-center z-50 transition-all duration-1000 p-8">
-              {/* 精密计时仪表盘：独立组件，彻底解耦渲染 */}
               <LaboratoryTimer active={isDeveloping} modeColor={modeColor} />
 
-              {/* 核心显影数据区 */}
               <div className="flex flex-col md:flex-row items-start justify-center w-full max-w-6xl gap-12 animate-fade-in">
                 <div className="flex-1 w-full flex flex-col gap-8">
                   <div className="flex items-center gap-6">
                     <div className="flex flex-col">
                       <span className="text-[12px] tracking-[0.4em] uppercase font-black text-white/90 mb-1">
-                        {developMode === 'AGENTIC' ? '大师模式显影协议 (Gemini 3)' : '标准 AIGC 快显协议 (Gemini 2.5)'}
+                        {developMode === 'AGENTIC' ? `大师模式 [${engine}] 显影协议` : `标准 AIGC [${engine}] 快显协议`}
                       </span>
                       <div className="flex items-center gap-2">
-                         <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">显影神经节点：在线</span>
+                         <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">神经节点：在线同步</span>
                          <div className="w-1 h-1 bg-green-500 rounded-full shadow-[0_0_5px_green]"></div>
                       </div>
                     </div>
                   </div>
 
-                  {/* 进度控制条 */}
                   <div className="flex flex-col gap-3">
                     <div className="flex justify-between items-end mb-1">
                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white">显影流水线深度</span>
@@ -379,7 +410,6 @@ export const Home: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* 终端日志区：与计时器彻底分离，不受高频计时刷新干扰 */}
                   <div className="bg-black/50 border border-neutral-900 p-5 rounded-sm font-mono text-[10px] h-48 overflow-hidden relative">
                     <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black via-black/50 to-transparent pointer-events-none"></div>
                     <div className="flex flex-col gap-2">
@@ -393,7 +423,6 @@ export const Home: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 侧边实验室洞察面板 */}
                 <div className="w-full md:w-80 flex flex-col gap-6">
                   <div className="flex flex-col gap-4 p-6 border border-neutral-800/50 bg-[#111] rounded-sm relative overflow-hidden min-h-[160px]">
                      <div className="absolute top-0 right-0 p-3 opacity-5">
@@ -511,7 +540,7 @@ export const Home: React.FC = () => {
               <div className="flex justify-between items-start">
                 <div className="flex flex-col gap-1">
                   <h4 className="text-white text-3xl font-black tracking-tighter leading-none">{infoModalSession.cameraName}</h4>
-                  <p className="text-neutral-500 text-[10px] uppercase tracking-[0.4em] font-bold">实验室显影档案</p>
+                  <p className="text-neutral-500 text-[10px] uppercase tracking-[0.4em] font-bold">实验室 [${infoModalSession.engine}] 显影档案</p>
                 </div>
                 <button onClick={() => setInfoModalSession(null)} className="text-neutral-600 hover:text-white transition-colors">
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -538,7 +567,7 @@ export const Home: React.FC = () => {
                   <div className="bg-[#0A0A0A] border border-neutral-800/50 p-6 rounded-sm relative group overflow-hidden">
                     <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-neutral-800 transition-colors group-hover:bg-[#E30613]"></div>
                     <div className="max-h-[350px] overflow-y-auto pr-3 scroll-thin">
-                      <PromptFormatter text={infoModalSession.outputMeta.promptUsed} />
+                      <PromptFormatter text={infoModalSession.outputMeta.promptUsed} sources={infoModalSession.outputMeta.sources} />
                     </div>
                   </div>
                 </div>
@@ -553,8 +582,8 @@ export const Home: React.FC = () => {
                      <span className="text-white font-mono text-base">{infoModalSession.outputMeta.width}p (HD)</span>
                    </div>
                    <div className="flex flex-col gap-1.5">
-                     <span className="text-[9px] font-black text-neutral-700 tracking-[0.2em] uppercase">档案序列号</span>
-                     <span className="text-white font-mono text-[13px] uppercase tracking-tight">#{infoModalSession.sessionId.split('_')[1].toUpperCase()}</span>
+                     <span className="text-[9px] font-black text-neutral-700 tracking-[0.2em] uppercase">引擎标识</span>
+                     <span className="text-white font-mono text-[13px] uppercase tracking-tight">{infoModalSession.engine}</span>
                    </div>
                    <div className="flex flex-col gap-1.5">
                      <span className="text-[9px] font-black text-neutral-700 tracking-[0.2em] uppercase">显影时间戳</span>

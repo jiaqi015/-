@@ -1,19 +1,28 @@
+
 /**
  * 环境变量管理服务
  */
 export class EnvService {
   /**
-   * 获取当前有效的 API Key
+   * 获取 Google Gemini API Key
    */
-  static getApiKey(): string {
+  static getGoogleApiKey(): string {
     return process.env.API_KEY || "";
   }
 
   /**
-   * 检查密钥有效性
+   * 获取 Alibaba DashScope API Key
    */
-  static hasValidKey(): boolean {
-    const key = this.getApiKey();
-    return typeof key === 'string' && key.length > 10;
+  static getAlibabaApiKey(): string {
+    return process.env.ALIBABA_API_KEY || "";
+  }
+
+  /**
+   * 检查是否有任何有效密钥可用
+   */
+  static hasAnyValidKey(): boolean {
+    const googleKey = this.getGoogleApiKey();
+    const aliKey = this.getAlibabaApiKey();
+    return (googleKey && googleKey.length > 10) || (aliKey && aliKey.length > 10);
   }
 }
