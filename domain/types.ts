@@ -1,7 +1,6 @@
 
 export type CameraIconType = 'svg' | 'emoji' | 'ai-generated';
 export type DevelopMode = 'DIRECT' | 'AGENTIC';
-export type EngineProvider = 'GOOGLE' | 'ALIBABA';
 
 export interface GroundingSource {
   title: string;
@@ -48,7 +47,6 @@ export interface DevelopSession {
   cameraId: string;
   cameraName: string;
   createdAt: Date;
-  engine: EngineProvider;
   inputImageHash?: string;
   outputMeta: {
     width: number;
@@ -56,7 +54,7 @@ export interface DevelopSession {
     intensity: number;
     mode: DevelopMode;
     promptUsed: string;
-    sources?: GroundingSource[];
+    sources?: GroundingSource[]; // 存储来自 Google Search 的溯源
   };
   outputUrl: string;
 }

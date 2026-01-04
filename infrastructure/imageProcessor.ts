@@ -1,6 +1,6 @@
 
 import { IImageProcessor, WorkflowStep } from '../application/ports';
-import { CameraProfile, DevelopResult, DevelopMode, GroundingSource, EngineProvider } from '../domain/types';
+import { CameraProfile, DevelopResult, DevelopMode, GroundingSource } from '../domain/types';
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold, GenerateContentResponse } from "@google/genai";
 import { KnowledgeRetrievalService } from './knowledgeBase';
 
@@ -198,14 +198,12 @@ ${local}
     const array = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
 
-    // Added the missing 'engine' property required by the DevelopSession interface.
     return {
       session: {
         sessionId: `sess_${Math.random().toString(36).substring(2, 10)}`,
         cameraId: profile.id,
         cameraName: profile.name,
         createdAt: new Date(),
-        engine: 'GOOGLE',
         outputMeta: { width, height, intensity, mode, promptUsed, sources },
         outputUrl: `data:image/png;base64,${outputBase64}`
       },
