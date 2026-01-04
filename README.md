@@ -1,32 +1,50 @@
+# Leifi Lab (徕滤实验室) v3.1.3
 
-# Leifi Lab (徕滤相机) v3.0
+**徕滤实验室**是一款致敬徕卡（Leica）美学的极简主义神经显影工作坊。它摒弃了传统的数学滤镜算法，转而采用基于大模型视觉理解的“光学重构”技术，为每一张照片注入胶片时代的灵魂。
 
-A high-end, minimalist camera filter workshop with a Leica-inspired aesthetic. **Now powered by Gemini 3 Pro.**
+## 核心演进：从滤镜到显影
 
-## Architecture (DDD)
+在 v3.1.3 版本中，我们彻底重构了底层架构，将传统的图像处理逻辑升级为**神经显影引擎（Neural Developing Engine）**：
 
-- **Domain**: Core entities (`DevelopSession`) and types (`CameraProfile`).
-- **Application**: Orchestration layer (`DevelopPhotoUseCase`).
-- **Infrastructure**: Now features `GeminiImageProcessor` which leverages `gemini-3-pro-image-preview` for sophisticated neural rendering.
-- **Presentation**: UI layer with mandatory API Key selection flow for high-quality compute.
+- **计算摄影 2.0**：不再是简单的调色，而是通过 Gemini 3 Pro 深度理解影像的光学特征，实现物理级别的纹理重构。
+- **光学数字孪生**：利用 RAG（检索增强生成）技术，将半个世纪的光学百科、底片化学特性注入模型指令集。
 
-## Evolution to AI
-The v3.0 update replaces standard Canvas filters with a Neural Synthesis engine. Instead of pixel-level mathematical operations, the app now performs "optical reconstruction" based on rich descriptive templates.
+## 核心特性
 
-## Key Selection (Mandatory)
-Because this app uses the high-performance `gemini-3-pro-image-preview` model, users must select a paid API key from their own GCP project. 
-Visit [ai.google.dev/gemini-api/docs/billing](https://ai.google.dev/gemini-api/docs/billing) for setup.
+### 1. 双重显影协议
+- **AIGC 模式 (预计 15-25s)**：追求灵感爆发的快速渲染。基于本地 RAG 知识库，快速赋予照片经典的胶片影调与氛围感。
+- **Agent 大师模式 (预计 45-90s)**：深度显影协议。引擎会启动“思维链（CoT）”分析照片的微对比度与高光滚降，并**实时联网搜索**特定相机的光学缺陷与色彩特性，进行精确的像素级重构。
 
-## Features
-- **Neural Synthesis**: True optical simulation using LLM-vision integration.
-- **Artist-Grade Prompts**: Each camera profile contains a high-density directive for texture, light, and atmosphere.
-- **Minimalist Aesthetic**: Pure Leica-inspired UX.
-- **Data-Driven**: Easily extendable camera catalog.
+### 2. RAG 知识库 v8.0
+内置高密度摄影美学语料库，涵盖：
+- **光学物理**：模拟德系镜头的“Leica Glow”晕化感与 T* 镀膜的通透感。
+- **感光乳剂科学**：还原 Kodak Tri-X 的云状颗粒与 CineStill 800T 的高光红晕（Halation）。
+- **传感器工程**：针对 M9 CCD 等经典传感器的非线性色彩溢出进行专项模拟。
 
-## How to Start
-1. Ensure you have Node.js installed.
-2. Run `npm start`.
-3. When prompted, select your API Key to enable the AI engine.
+### 3. 大师级预设集
+- **Leica M3 Rigid**：人文黑白的巅峰，极致的微对比度。
+- **Leica M9 Steel Grey**：CCD 时代的油画感，绯红色的厚重发色。
+- **Hasselblad 500C/M**：中画幅的仪式感，平滑的高光滚降。
+- **CineStill 800T**：霓虹夜景神器，电影胶片的暗部青调。
 
-## How to Add a New Camera
-Modify `infrastructure/resources/cameras.ts`. Ensure your `promptTemplate` is rich with technical photography terms to guide the Gemini engine effectively.
+## 架构说明 (DDD)
+
+项目严格遵循 **领域驱动设计（Domain-Driven Design）**：
+- **Domain (领域层)**：定义显影会话（DevelopSession）与相机配置文件（CameraProfile）的核心逻辑。
+- **Application (应用层)**：编排显影用例（DevelopPhotoUseCase），处理业务流转。
+- **Infrastructure (基础设施层)**：实现 Gemini 3 Pro 适配器、IndexedDB 本地持久化以及实时搜索工具。
+
+## 技术栈
+- **核心模型**：Google Gemini 3 Pro (Image Preview)
+- **前端框架**：React 19 + TailwindCSS
+- **存储方案**：IndexedDB (自动缓存最近 20 张显影底片)
+- **构建系统**：Vite + TypeScript
+
+## 使用须知
+
+由于采用了高性能的 **Gemini 3 Pro** 引擎，本应用要求用户：
+1. **API Key 授权**：在进入实验室前，需通过内置对话框选择有效的 API Key（需开启付费结算以支持 Pro 模型）。
+2. **高阶特性**：大师模式会触发 `googleSearch` 工具，以获取最新的光学研究数据进行辅助显影。
+
+---
+© 2026 徕滤 / AI 光学与艺术

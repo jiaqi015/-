@@ -1,5 +1,6 @@
 
 export type CameraIconType = 'svg' | 'emoji' | 'ai-generated';
+export type DevelopMode = 'DIRECT' | 'AGENTIC';
 
 export interface OpticalProperties {
   microContrast: 'high' | 'medium' | 'soft';
@@ -46,7 +47,8 @@ export interface DevelopSession {
     width: number;
     height: number;
     intensity: number;
-    promptUsed: string; // 记录最终发送给 AI 的完整指令，便于回溯
+    mode: DevelopMode;
+    promptUsed: string;
   };
   outputUrl: string;
 }
