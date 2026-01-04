@@ -14,8 +14,10 @@ export class GeminiImageProcessor implements IImageProcessor {
     mode: DevelopMode,
     onProgress?: (step: WorkflowStep) => void
   ): Promise<DevelopResult> {
+    // 关键修复：每次处理前从环境变量重新获取最新的 API_KEY 并实例化
+    // 在 AI Studio 环境中，process.env.API_KEY 会在用户通过 dialog 选择后被注入
     const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("缺少 API 密钥");
+    if (!apiKey) throw new Error("缺少有效的 API 密钥，请在实验室入口进行授权。");
 
     const ai = new GoogleGenAI({ apiKey });
     const imageData = await this.getOptimizedImageData(imageSource, 1536);
@@ -29,7 +31,8 @@ export class GeminiImageProcessor implements IImageProcessor {
   }
 
   /**
-   * 模式 A：AIGC 快显模式 (Gemini 2.5)
+   * 模式 A：AIGC 快显模式 (Gemini 3 Flash)
+   * 使用较轻量但高性能的模型完成基础显影
    */
   private async executeAigcWorkflow(
     ai: any,
@@ -39,7 +42,7 @@ export class GeminiImageProcessor implements IImageProcessor {
     onProgress?: any
   ): Promise<DevelopResult> {
     onProgress?.('RETRIEVING_KNOWLEDGE');
-    const quickFacts = KnowledgeRetrievalService.retrieve([profile.name, 'photography']);
+    const quickFacts = KnowledgeRetrievalService.retrieve([profile.name, 'photography', profile.category]);
     
     onProgress?.('NEURAL_DEVELOPING');
     const finalPrompt = `【徕滤实验室 AIGC 快显协议】
@@ -48,7 +51,7 @@ export class GeminiImageProcessor implements IImageProcessor {
 要求：强度设为 ${intensity}。快速重现 ${profile.name} 的影调氛围，保持画面纯净度。`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-3-pro-image-preview', // 统一使用 3 系列以获得最佳画质，且支持 1K 参数
       contents: {
         parts: [
           { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
@@ -58,8 +61,8 @@ export class GeminiImageProcessor implements IImageProcessor {
       config: {
         safetySettings: this.getSafetySettings(),
         imageConfig: { 
-          aspectRatio: this.getClosestAspectRatio(img.width, img.height)
-          // 注意：gemini-2.5-flash-image 不支持 imageSize 参数，设置会导致 400 错误
+          aspectRatio: this.getClosestAspectRatio(img.width, img.height),
+          imageSize: "1K"
         }
       }
     });
@@ -68,7 +71,8 @@ export class GeminiImageProcessor implements IImageProcessor {
   }
 
   /**
-   * 模式 B：Agent 大师模式 (Gemini 3)
+   * 模式 B：Agent 大师模式 (Gemini 3 Pro)
+   * 涉及双重思考、联网搜索与高密度 RAG 注入
    */
   private async executeAgenticWorkflow(
     ai: any,
@@ -78,7 +82,7 @@ export class GeminiImageProcessor implements IImageProcessor {
     onProgress?: any
   ): Promise<DevelopResult> {
     onProgress?.('ANALYZING_OPTICS');
-    // 第一步：使用 Gemini 3 Pro 文本模型进行深度视觉审计
+    // 第一步：深度视觉审计 (利用 Gemini 3 Pro 的推理能力)
     const analystResponse = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: {
@@ -95,12 +99,16 @@ export class GeminiImageProcessor implements IImageProcessor {
     const visualAudit = analystResponse.text || "视觉审计已完成。";
 
     onProgress?.('RETRIEVING_KNOWLEDGE');
+    // 第二步：联网获取最新器材评测与物理参数
     const searchResponse = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview', // 使用支持搜索的 3 系列模型
-      contents: `检索关于 ${profile.name} 相机的最新光学评测、色彩科学文档及物理缺陷分析。`,
+      model: 'gemini-3-pro-image-preview',
+      contents: `检索关于 ${profile.name} 相机的最新光学评测、色彩科学文档、传感器物理缺陷分析以及在现代摄影中的应用建议。`,
       config: { tools: [{ googleSearch: {} }] }
     });
     const searchKnowledge = searchResponse.text || "实时技术数据已注入。";
+    
+    // 第三步：从本地高密度知识库检索核心语料
+    const localKnowledge = KnowledgeRetrievalService.retrieve([profile.name, profile.category, 'sensor', 'optical']);
 
     onProgress?.('NEURAL_DEVELOPING');
     const finalReport = `【徕滤实验室 Agent 大师显影报告】
@@ -111,13 +119,17 @@ ${visualAudit}
 【全球实时技术同步】
 ${searchKnowledge}
 
-【执行显影协议】
+【本地高密度光学底稿】
+${localKnowledge}
+
+【原始执行协议】
 ${profile.promptTemplate.replace(/\[[\s\S]*?\]/g, '')}
 
-【显影策略】
-根据上述审计，以 ${intensity} 强度进行深度显影。
-重点：重构 ${profile.name} 特有的微对比度与有机颗粒感，执行高位深色彩重组。`;
+【显影策略核心】
+根据上述审计与检索到的物理参数，以 ${intensity} 强度进行深度显影。
+重点：精准重构 ${profile.name} 特有的微对比度、边角失光 (Vignetting) 与有机颗粒感。利用联网获取的最新色彩对齐逻辑，执行高位深色彩重组。`;
 
+    // 最终像素重构
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: {
@@ -130,7 +142,7 @@ ${profile.promptTemplate.replace(/\[[\s\S]*?\]/g, '')}
         safetySettings: this.getSafetySettings(),
         imageConfig: { 
           aspectRatio: this.getClosestAspectRatio(img.width, img.height),
-          imageSize: "1K" // 仅 Gemini 3 系列支持此参数
+          imageSize: "1K"
         },
         tools: [{ googleSearch: {} }]
       }
@@ -157,7 +169,11 @@ ${profile.promptTemplate.replace(/\[[\s\S]*?\]/g, '')}
       }
     }
 
-    if (!outputBase64) throw new Error("显影引擎未能生成像素数据，请检查网络或重试。");
+    if (!outputBase64) {
+      // 捕获权限相关错误或内容拦截
+      const status = response.candidates?.[0]?.finishReason;
+      throw new Error(`显影引擎未能生成像素数据。状态: ${status || '未知故障'}。请检查 API 权限或重试。`);
+    }
 
     const sessionId = `sess_${Math.random().toString(36).substring(2, 10)}`;
     const outputUrl = `data:image/png;base64,${outputBase64}`;
