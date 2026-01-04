@@ -13,6 +13,15 @@ interface InternalImageData {
   height: number;
 }
 
+/**
+ * 显影引擎模型配置常量
+ */
+const MODELS = {
+  QUICK_DEVELOP: 'gemini-2.5-flash-image',       // 2.5 快速显影引擎
+  MASTER_AUDIT: 'gemini-3-pro-preview',          // 3.0 大师审计引擎 (支持 Thinking)
+  MASTER_DEVELOP: 'gemini-3-pro-image-preview'   // 3.0 大师显影引擎 (高精度/Search)
+};
+
 export class GeminiImageProcessor implements IImageProcessor {
   /**
    * 主入口：显影执行引擎
@@ -27,7 +36,6 @@ export class GeminiImageProcessor implements IImageProcessor {
     const apiKey = process.env.API_KEY;
     if (!apiKey) throw new Error("缺少有效的 API 密钥，请在实验室入口进行授权。");
 
-    // 每次处理重新实例化以确保 API Key 时效性
     const ai = new GoogleGenAI({ apiKey });
     const imageData = await this.getOptimizedImageData(imageSource, 1536);
     
@@ -37,7 +45,7 @@ export class GeminiImageProcessor implements IImageProcessor {
   }
 
   /**
-   * AIGC 快显流程：注重速度与本地 RAG 结合
+   * AIGC 快显流程：使用 Gemini 2.5 Flash Image 引擎
    */
   private async executeAigcWorkflow(
     ai: GoogleGenAI,
@@ -53,7 +61,7 @@ export class GeminiImageProcessor implements IImageProcessor {
     const prompt = this.buildAigcPrompt(profile, localContext, intensity);
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
+      model: MODELS.QUICK_DEVELOP,
       contents: {
         parts: [
           { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
@@ -63,8 +71,8 @@ export class GeminiImageProcessor implements IImageProcessor {
       config: {
         safetySettings: this.getSafetySettings(),
         imageConfig: { 
-          aspectRatio: this.getClosestAspectRatio(img.width, img.height),
-          imageSize: "1K"
+          aspectRatio: this.getClosestAspectRatio(img.width, img.height)
+          // 2.5 Flash 不支持 imageSize 1K/2K/4K 参数，仅由 aspectRatio 控制
         }
       }
     });
@@ -73,7 +81,7 @@ export class GeminiImageProcessor implements IImageProcessor {
   }
 
   /**
-   * Agent 大师流程：深度多步推理 + 联网搜索溯源
+   * Agent 大师流程：使用 Gemini 3 Pro 旗舰引擎
    */
   private async executeAgenticWorkflow(
     ai: GoogleGenAI,
@@ -82,10 +90,10 @@ export class GeminiImageProcessor implements IImageProcessor {
     intensity: number,
     onProgress?: (step: WorkflowStep) => void
   ): Promise<DevelopResult> {
-    // 1. 视觉审计：利用 Pro 模型的长思考能力分析原片
     onProgress?.('ANALYZING_OPTICS');
+    // 视觉审计：利用 3.0 Pro 模型的长思考能力
     const auditResponse: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: MODELS.MASTER_AUDIT,
       contents: {
         parts: [
           { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
@@ -96,10 +104,9 @@ export class GeminiImageProcessor implements IImageProcessor {
     });
     const visualAudit = auditResponse.text || "视觉审计完成。";
 
-    // 2. 实时知识获取：Google Search 溯源
     onProgress?.('RETRIEVING_KNOWLEDGE');
     const searchResponse: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
+      model: MODELS.MASTER_DEVELOP,
       contents: `检索关于 ${profile.name} 相机的最新光学评测、色彩科学文档以及物理发色特性。`,
       config: { tools: [{ googleSearch: {} }] }
     });
@@ -108,12 +115,11 @@ export class GeminiImageProcessor implements IImageProcessor {
     const searchKnowledge = searchResponse.text || "实时数据注入中...";
     const localKnowledge = KnowledgeRetrievalService.retrieve([profile.name, profile.category, 'sensor', 'optical']);
 
-    // 3. 最终显影：整合多维信息的像素重构
     onProgress?.('NEURAL_DEVELOPING');
     const masterReport = this.buildAgenticReport(visualAudit, searchKnowledge, localKnowledge, profile, intensity);
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
+      model: MODELS.MASTER_DEVELOP,
       contents: {
         parts: [
           { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
@@ -126,14 +132,12 @@ export class GeminiImageProcessor implements IImageProcessor {
           aspectRatio: this.getClosestAspectRatio(img.width, img.height),
           imageSize: "1K"
         },
-        tools: [{ googleSearch: {} }] // 保持联网特性以支持生成时的实时参考
+        tools: [{ googleSearch: {} }]
       }
     });
 
     return this.assembleResult(response, profile, intensity, 'AGENTIC', masterReport, img.width, img.height, sources);
   }
-
-  // --- 辅助方法：逻辑拆分 ---
 
   private buildAigcPrompt(profile: CameraProfile, context: string, intensity: number): string {
     return `【徕滤实验室 AIGC 快显协议】
@@ -210,8 +214,6 @@ ${local}
       blob: new Blob([array], { type: 'image/png' })
     };
   }
-
-  // --- 物理参数工具方法 ---
 
   private getSafetySettings() {
     return [

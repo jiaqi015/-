@@ -366,7 +366,7 @@ export const Home: React.FC = () => {
                   <div className="flex items-center gap-6">
                     <div className="flex flex-col">
                       <span className="text-[12px] tracking-[0.4em] uppercase font-black text-white/90 mb-1">
-                        {developMode === 'AGENTIC' ? '大师模式显影协议 (Gemini 3 Pro)' : '标准 AIGC 快显协议 (Gemini 3 Pro)'}
+                        {developMode === 'AGENTIC' ? '大师模式显影协议 (预估 45-90s)' : '标准 AIGC 快显协议 (预估 15-25s)'}
                       </span>
                       <div className="flex items-center gap-2">
                          <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">显影神经节点：在线</span>
@@ -469,7 +469,7 @@ export const Home: React.FC = () => {
                       <span className={`text-[10px] font-black tracking-[0.2em] uppercase transition-colors ${developMode === 'DIRECT' ? 'text-white' : 'text-neutral-600'}`}>
                         AIGC 快显
                       </span>
-                      <span className="text-[11px] font-mono opacity-80 uppercase tracking-tighter transition-colors group-hover:text-white">约 15-25秒</span>
+                      <span className="text-[11px] font-mono opacity-80 uppercase tracking-tighter transition-colors group-hover:text-white">预估 15-25s</span>
                     </div>
                   </button>
                   <div className="w-px h-8 bg-neutral-800 mx-1"></div>
@@ -481,9 +481,9 @@ export const Home: React.FC = () => {
                     <div className={`w-1.5 h-1.5 rounded-full ${developMode === 'AGENTIC' ? 'bg-[#D4AF37] shadow-[0_0_8px_#D4AF37]' : 'bg-neutral-800'}`}></div>
                     <div className="flex flex-col items-start">
                       <span className={`text-[10px] font-black tracking-[0.2em] uppercase transition-colors ${developMode === 'AGENTIC' ? 'text-[#D4AF37]' : 'text-neutral-600'}`}>
-                        Agent 大师
+                        AGENT 大师
                       </span>
-                      <span className="text-[11px] font-mono opacity-80 uppercase tracking-tighter transition-colors group-hover:text-white">约 45-90秒</span>
+                      <span className="text-[11px] font-mono opacity-80 uppercase tracking-tighter transition-colors group-hover:text-white">预估 45-90s</span>
                     </div>
                   </button>
                 </div>
