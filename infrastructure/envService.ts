@@ -1,28 +1,45 @@
 
 /**
- * 环境变量管理服务
+ * 环境变量与实验室配置管理服务
  */
 export class EnvService {
-  /**
-   * 获取 Google Gemini API Key
-   */
+  private static readonly PREFIX = 'LEIFI_LAB_';
+
+  private static getValue(key: string): string {
+    // 1. 优先尝试从 Vite 注入的环境变量读取
+    const envVal = process.env[key];
+    if (envVal && envVal.length > 5) return envVal;
+
+    // 2. 其次从 localStorage 读取
+    return localStorage.getItem(`${this.PREFIX}${key}`) || "";
+  }
+
   static getGoogleApiKey(): string {
-    return process.env.API_KEY || "";
+    return this.getValue('API_KEY');
   }
 
-  /**
-   * 获取 Alibaba DashScope API Key
-   */
   static getAlibabaApiKey(): string {
-    return process.env.ALIBABA_API_KEY || "";
+    return this.getValue('ALIBABA_API_KEY');
   }
 
   /**
-   * 检查是否有任何有效密钥可用
+   * 获取用户配置的 CORS 代理地址
    */
-  static hasAnyValidKey(): boolean {
-    const googleKey = this.getGoogleApiKey();
-    const aliKey = this.getAlibabaApiKey();
-    return (googleKey && googleKey.length > 10) || (aliKey && aliKey.length > 10);
+  static getCorsProxy(): string {
+    return localStorage.getItem(`${this.PREFIX}CORS_PROXY`) || "";
+  }
+
+  static setConfigs(configs: { alibaba?: string; google?: string; proxy?: string }) {
+    if (configs.alibaba !== undefined) localStorage.setItem(`${this.PREFIX}ALIBABA_API_KEY`, configs.alibaba);
+    if (configs.google !== undefined) localStorage.setItem(`${this.PREFIX}API_KEY`, configs.google);
+    if (configs.proxy !== undefined) localStorage.setItem(`${this.PREFIX}CORS_PROXY`, configs.proxy);
+  }
+
+  static isAlibabaReady(): boolean {
+    return this.getAlibabaApiKey().length > 10;
+  }
+
+  static isGoogleReady(): boolean {
+    return this.getGoogleApiKey().length > 10;
   }
 }
