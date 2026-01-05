@@ -45,6 +45,35 @@ export const Uploader: React.FC<UploaderProps> = ({ image, onUpload }) => {
       onDrop={handleDrop}
       onClick={() => fileInputRef.current?.click()}
     >
+      {/* 模拟取景器视觉层 (Viewfinder Elements) - 显著增强可见度 */}
+      <div className="absolute inset-0 pointer-events-none z-10">
+        {/* 四角框线：使用中度灰色 neutral-500 确保高清晰度 */}
+        <div className="absolute top-6 left-6 w-8 h-8 border-t border-l border-neutral-500/80 transition-all duration-500 group-hover:border-white/80 group-hover:scale-105"></div>
+        <div className="absolute top-6 right-6 w-8 h-8 border-t border-r border-neutral-500/80 transition-all duration-500 group-hover:border-white/80 group-hover:scale-105"></div>
+        <div className="absolute bottom-6 left-6 w-8 h-8 border-b border-l border-neutral-500/80 transition-all duration-500 group-hover:border-white/80 group-hover:scale-105"></div>
+        <div className="absolute bottom-6 right-6 w-8 h-8 border-b border-r border-neutral-500/80 transition-all duration-500 group-hover:border-white/80 group-hover:scale-105"></div>
+
+        {/* 中心十字准星 - 核心对焦点增强 */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-all">
+          <div className="w-px h-full bg-neutral-400 transition-colors duration-500 group-hover:bg-white"></div>
+          <div className="absolute w-full h-px bg-neutral-400 transition-colors duration-500 group-hover:bg-white"></div>
+        </div>
+
+        {/* 模拟曝光补偿刻度 (装饰性) - 提升对比度与存在感 */}
+        {!image && (
+          <div className="absolute right-8 top-1/2 -translate-y-1/2 flex flex-col gap-2 items-end opacity-60 group-hover:opacity-100 transition-all duration-700">
+            {[+2, +1, 0, -1, -2].map(num => (
+              <div key={num} className="flex items-center gap-2.5">
+                <span className={`text-[8px] font-mono font-bold tracking-tighter transition-colors ${num === 0 ? 'text-neutral-300' : 'text-neutral-500 group-hover:text-neutral-300'}`}>
+                  {num > 0 ? `+${num}` : num}
+                </span>
+                <div className={`h-[1px] transition-all ${num === 0 ? 'w-5 bg-neutral-300' : 'w-3 bg-neutral-600 group-hover:bg-neutral-400'}`}></div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <input 
         type="file" 
         className="hidden" 
@@ -55,8 +84,8 @@ export const Uploader: React.FC<UploaderProps> = ({ image, onUpload }) => {
       
       {image ? (
         <>
-          <img src={image} className="w-full h-full object-contain p-8 animate-fade-in" alt="预览" />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center backdrop-blur-sm">
+          <img src={image} className="w-full h-full object-contain p-12 animate-fade-in relative z-0" alt="预览" />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center backdrop-blur-sm z-20">
             <div className="w-12 h-12 border border-white/20 rounded-full flex items-center justify-center mb-4">
               <span className="text-white text-xl font-light">+</span>
             </div>
@@ -64,20 +93,20 @@ export const Uploader: React.FC<UploaderProps> = ({ image, onUpload }) => {
           </div>
         </>
       ) : (
-        <div className="text-center flex flex-col items-center gap-6 p-8">
-          <div className="w-16 h-16 border border-neutral-800 rounded-full flex items-center justify-center mb-2 group-hover:border-neutral-600 transition-all duration-500">
-            <span className="text-neutral-700 text-3xl font-light group-hover:text-neutral-400 transition-colors">+</span>
+        <div className="text-center flex flex-col items-center gap-6 p-8 relative z-20">
+          <div className="w-16 h-16 border border-neutral-700 rounded-full flex items-center justify-center mb-2 group-hover:border-neutral-400 transition-all duration-500 bg-neutral-900/40">
+            <span className="text-neutral-400 text-3xl font-light group-hover:text-white transition-colors">+</span>
           </div>
           <div className="flex flex-col gap-3">
             <p className="text-neutral-300 text-[16px] font-black tracking-[0.5em] uppercase transition-colors group-hover:text-white">
               上传影像源
             </p>
-            <p className="text-neutral-600 text-[10px] tracking-[0.15em] font-mono uppercase">
+            <p className="text-neutral-500 text-[10px] tracking-[0.15em] font-mono uppercase">
               支持 拖拽, 粘贴 或 点击
             </p>
           </div>
-          <div className="w-10 h-px bg-neutral-900 group-hover:bg-neutral-700 transition-all"></div>
-          <p className="text-neutral-800 text-[9px] tracking-[0.2em] font-mono uppercase">
+          <div className="w-10 h-px bg-neutral-800 group-hover:bg-neutral-600 transition-all"></div>
+          <p className="text-neutral-700 text-[9px] tracking-[0.2em] font-mono uppercase">
             支持 JPEG / PNG / RAW 格式
           </p>
         </div>
