@@ -51,13 +51,10 @@ const LaboratoryTimer: React.FC<{ active: boolean; modeColor: string }> = ({ act
               </div>
             ))}
           </div>
-          <span className="text-[18px] ml-4 font-sans opacity-40 uppercase tracking-[0.6em] font-bold" style={{ color: modeColor }}>SEC</span>
+          <span className="text-[18px] ml-4 font-sans opacity-40 uppercase tracking-[0.3em] font-bold" style={{ color: modeColor }}>秒</span>
         </div>
       </div>
-      <div className="flex items-center gap-3 mt-1">
-        <div className="w-1.5 h-1.5 rounded-full animate-pulse bg-[#E30613] shadow-[0_0_8px_#E30613]"></div>
-        <span className="text-[10px] tracking-[0.5em] uppercase font-black text-neutral-600">Objective Process Time (Optic Lab)</span>
-      </div>
+      {/* 移除红色框部分的 Objective Process Time */}
     </div>
   );
 };
@@ -366,7 +363,7 @@ export const Home: React.FC = () => {
                   <div className="flex items-center gap-6">
                     <div className="flex flex-col">
                       <span className="text-[12px] tracking-[0.4em] uppercase font-black text-white/90 mb-1">
-                        {developMode === 'AGENTIC' ? '大师模式显影协议 (预估 45-90s)' : '标准 AIGC 快显协议 (预估 15-25s)'}
+                        {developMode === 'AGENTIC' ? '大师模式（多 Agent 协作协议，预估需要 45-90 秒 ）' : '标准 AIGC 快显协议 (预估 15-25s)'}
                       </span>
                       <div className="flex items-center gap-2">
                          <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-widest">显影神经节点：在线</span>
