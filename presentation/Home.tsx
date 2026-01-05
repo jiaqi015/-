@@ -1,27 +1,22 @@
 
-import React, { useState, useEffect, useRef, memo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Logo } from './components/Logo';
 import { Uploader } from './components/Uploader';
 import { CameraPicker } from './components/CameraPicker';
 import { IntensitySlider } from './components/IntensitySlider';
 import { ExifRibbon } from './components/ExifRibbon';
 import { HistoryStrip } from './components/HistoryStrip';
-import { developPhotoUseCase, cameraCatalogUseCase, downloadAppService } from '../infrastructure/container';
+import { cameraCatalogUseCase, downloadAppService } from '../infrastructure/container';
 import { CameraProfile, DevelopSession, DevelopMode, GroundingSource } from '../domain/types';
 import { WorkflowStep } from '../application/ports';
 import { LocalSessionRepository } from '../infrastructure/sessionRepository';
 
-const sessionRepo = new LocalSessionRepository();
+// Hooks
+import { useAuth } from './hooks/useAuth';
+import { useDevelopWorkflow } from './hooks/useDevelopWorkflow';
+import { useLaboratoryTelemetry } from './hooks/useLaboratoryTelemetry';
 
-declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
-  interface Window {
-    aistudio?: AIStudio;
-  }
-}
+const sessionRepo = new LocalSessionRepository();
 
 const LaboratoryTimer: React.FC<{ active: boolean; modeColor: string }> = ({ active, modeColor }) => {
   const [elapsed, setElapsed] = useState(0);
@@ -54,7 +49,6 @@ const LaboratoryTimer: React.FC<{ active: boolean; modeColor: string }> = ({ act
           <span className="text-[18px] ml-4 font-sans opacity-40 uppercase tracking-[0.3em] font-bold" style={{ color: modeColor }}>秒</span>
         </div>
       </div>
-      {/* 移除红色框部分的 Objective Process Time */}
     </div>
   );
 };
@@ -131,142 +125,51 @@ const WORKFLOW_LABELS: Record<WorkflowStep, string> = {
   'QUALITY_CHECKING': '质量检查官：校准色彩一致性与纹理'
 };
 
-const DYNAMIC_LOGS: Record<WorkflowStep, string[]> = {
-  'ANALYZING_OPTICS': [
-    '正在采样 Bayer 阵列排列...',
-    '分析高光区域动态范围溢出...',
-    '识别暗部噪声分布模型...',
-    '映射原始光影能量梯度...',
-    '检测镜头径向球差残留...'
-  ],
-  'RETRIEVING_KNOWLEDGE': [
-    '正在检索光学专利库...',
-    '注入 T* 镀膜光谱透射率曲线...',
-    '模拟卤化银颗粒在显影液中的物理反应...',
-    '同步实时联网摄影技术文档...',
-    '加载 CCD 传感器非线性色彩映射表...'
-  ],
-  'NEURAL_DEVELOPING': [
-    '重构边缘微对比度梯度...',
-    '注入有机随机颗粒噪声...',
-    '校准 Zone System 影调层次...',
-    '执行高阶高光滚降映射...',
-    '正在合成中画幅虚化散景过渡...'
-  ],
-  'QUALITY_CHECKING': [
-    '对比度一致性审计通过...',
-    '色温偏差零点校准完成...',
-    '锐度人工痕迹消除逻辑激活...',
-    '正在导出 14-bit 高位深显影档案...',
-    '准备封装实验室专属 EXIF 证书...'
-  ]
-};
-
-const LAB_INSIGHTS = [
-  "徕卡的‘空气感’源于对微对比度的独特控制。",
-  "Kodak Portra 400 会在红色通道执行非线性去饱和，以保护肤色。",
-  "CCD 传感器的魅力在于其色彩通道的电荷收集深度。",
-  "经典的‘Leica Glow’是由残留的球面像差带来的氤氲感。",
-  "中画幅相机的虚化过渡比全画幅更加平滑自然。",
-  "蔡司 T* 镀膜通过原子层沉积技术消除了绝大部分鬼影。"
-];
-
 export const Home: React.FC = () => {
-  const [sourceImage, setSourceImage] = useState<string | null>(null);
-  const [selectedCameraId, setSelectedCameraId] = useState<string | null>('leica-m3-rigid');
-  const [intensity, setIntensity] = useState(1.0);
-  const [developMode, setDevelopMode] = useState<DevelopMode>('DIRECT');
-  const [isDeveloping, setIsDeveloping] = useState(false);
-  const [currentStep, setCurrentStep] = useState<WorkflowStep>('ANALYZING_OPTICS');
-  const [result, setResult] = useState<{ session: DevelopSession; url: string } | null>(null);
-  const [showSource, setShowSource] = useState(false);
+  const { isAuthorized, triggerAuth } = useAuth();
   const [history, setHistory] = useState<DevelopSession[]>([]);
-  const [profiles] = useState<CameraProfile[]>(() => cameraCatalogUseCase.getProfiles());
-  
-  const [infoModalSession, setInfoModalSession] = useState<DevelopSession | null>(null);
-  const [copyFeedback, setCopyFeedback] = useState(false);
-  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
-  const [telemetryLogs, setTelemetryLogs] = useState<string[]>([]);
-  const [insightIndex, setInsightIndex] = useState(0);
-
   const loadHistory = async () => {
     const sessions = await sessionRepo.getAll();
     setHistory(sessions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
   };
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-        const hasKey = await window.aistudio.hasSelectedApiKey();
-        if (hasKey) { setIsAuthorized(true); return; }
-      }
-      const key = process.env.API_KEY;
-      if (key && key.length > 5) setIsAuthorized(true);
-    };
-    checkAuth();
-    loadHistory();
-  }, []);
+  const { isDeveloping, currentStep, result, setResult, handleDevelop, resetResult } = useDevelopWorkflow(loadHistory);
+  const { telemetryLogs, currentInsight } = useLaboratoryTelemetry(isDeveloping, currentStep);
 
-  useEffect(() => {
-    if (isDeveloping) {
-      setTelemetryLogs(["实验室系统初始化...", "正在连接神经显影节点..."]);
-      setInsightIndex(Math.floor(Math.random() * LAB_INSIGHTS.length));
-      
-      const logInterval = window.setInterval(() => {
-        setTelemetryLogs(prev => {
-          const possible = DYNAMIC_LOGS[currentStep];
-          const nextLog = possible[Math.floor(Math.random() * possible.length)];
-          return [...prev.slice(-12), `[成功] ${nextLog}`];
-        });
-      }, 1500);
+  const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [selectedCameraId, setSelectedCameraId] = useState<string | null>('leica-m3-rigid');
+  const [intensity, setIntensity] = useState(1.0);
+  const [developMode, setDevelopMode] = useState<DevelopMode>('DIRECT');
+  const [showSource, setShowSource] = useState(false);
+  const [profiles] = useState<CameraProfile[]>(() => cameraCatalogUseCase.getProfiles());
+  const [infoModalSession, setInfoModalSession] = useState<DevelopSession | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState(false);
 
-      const insightInterval = window.setInterval(() => {
-        setInsightIndex(prev => (prev + 1) % LAB_INSIGHTS.length);
-      }, 5000);
-
-      return () => {
-        clearInterval(logInterval);
-        clearInterval(insightInterval);
-      };
-    }
-  }, [isDeveloping, currentStep]);
+  useEffect(() => { loadHistory(); }, []);
 
   const handleUpload = (file: File) => {
     const url = URL.createObjectURL(file);
     setSourceImage(url);
-    setResult(null);
+    resetResult();
     setShowSource(false);
   };
 
-  const handleReset = () => {
+  const handleFullReset = () => {
     if (sourceImage && sourceImage.startsWith('blob:')) {
       URL.revokeObjectURL(sourceImage);
     }
     setSourceImage(null);
-    setResult(null);
+    resetResult();
     setShowSource(false);
   };
 
-  const handleDevelop = async () => {
-    if (!sourceImage || !selectedCameraId) return;
+  const onDevelopClick = async () => {
     try {
-      setIsDeveloping(true);
-      const { session } = await developPhotoUseCase.execute(
-        sourceImage, 
-        selectedCameraId, 
-        intensity,
-        developMode,
-        (step) => setCurrentStep(step)
-      );
-      setResult({ session, url: session.outputUrl });
+      await handleDevelop(sourceImage, selectedCameraId, intensity, developMode);
       setShowSource(false);
-      loadHistory();
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (error: any) {
-      console.error("显影引擎故障:", error);
+    } catch (err) {
       alert('显影中断：远程神经引擎连接超时或请求参数错误。');
-    } finally {
-      setIsDeveloping(false);
     }
   };
 
@@ -300,7 +203,7 @@ export const Home: React.FC = () => {
         <Logo />
         <div className="mt-12 p-10 border border-neutral-800 bg-[#161616] max-w-sm shadow-2xl rounded-sm">
            <p className="text-white font-black mb-6 tracking-[0.3em] uppercase text-[11px]">正在唤醒显影神经引擎</p>
-           <button onClick={() => window.aistudio?.openSelectKey().then(() => setIsAuthorized(true))} className="w-full h-16 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase text-[12px] active:scale-95">开始显影流程</button>
+           <button onClick={triggerAuth} className="w-full h-16 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase text-[12px] active:scale-95">开始显影流程</button>
            <p className="mt-6 text-[8px] text-neutral-600 font-bold tracking-[0.2em] uppercase">© 2026 徕滤 / AI 光学与艺术</p>
         </div>
       </div>
@@ -322,7 +225,7 @@ export const Home: React.FC = () => {
           {sourceImage && !isDeveloping && (
             <div className="absolute top-4 left-4 z-40 flex gap-2">
               <button 
-                onClick={handleReset}
+                onClick={handleFullReset}
                 className="group flex items-center bg-black/60 backdrop-blur-3xl border border-white/5 px-4 h-10 rounded-full transition-all hover:bg-[#E30613] active:scale-95 shadow-2xl"
               >
                 <span className="text-white text-[9px] font-black tracking-[0.2em] uppercase">重置实验室</span>
@@ -357,7 +260,6 @@ export const Home: React.FC = () => {
           {isDeveloping && (
             <div className="absolute inset-0 bg-[#0A0A0A]/98 backdrop-blur-3xl flex flex-col items-center justify-center z-50 transition-all duration-1000 p-8">
               <LaboratoryTimer active={isDeveloping} modeColor={modeColor} />
-
               <div className="flex flex-col md:flex-row items-start justify-center w-full max-w-6xl gap-12 animate-fade-in">
                 <div className="flex-1 w-full flex flex-col gap-8">
                   <div className="flex items-center gap-6">
@@ -371,7 +273,6 @@ export const Home: React.FC = () => {
                       </div>
                     </div>
                   </div>
-
                   <div className="flex flex-col gap-3">
                     <div className="flex justify-between items-end mb-1">
                       <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white">显影流水线深度</span>
@@ -386,7 +287,6 @@ export const Home: React.FC = () => {
                       {WORKFLOW_LABELS[currentStep]}
                     </span>
                   </div>
-
                   <div className="bg-black/50 border border-neutral-900 p-5 rounded-sm font-mono text-[10px] h-48 overflow-hidden relative">
                     <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black via-black/50 to-transparent pointer-events-none"></div>
                     <div className="flex flex-col gap-2">
@@ -399,7 +299,6 @@ export const Home: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
                 <div className="w-full md:w-80 flex flex-col gap-6">
                   <div className="flex flex-col gap-4 p-6 border border-neutral-800/50 bg-[#111] rounded-sm relative overflow-hidden min-h-[160px]">
                      <div className="absolute top-0 right-0 p-3 opacity-5">
@@ -407,10 +306,9 @@ export const Home: React.FC = () => {
                      </div>
                      <span className="text-[9px] font-black text-neutral-600 tracking-[0.3em] uppercase border-b border-neutral-800 pb-2">实验室显影洞察</span>
                      <p className="text-[12px] text-neutral-300 leading-relaxed font-medium transition-all duration-1000 italic pt-2">
-                       “{LAB_INSIGHTS[insightIndex]}”
+                       “{currentInsight}”
                      </p>
                   </div>
-
                   <div className="flex flex-col items-center gap-6 mt-4">
                     <div className="relative">
                        <div className="w-16 h-16 border-[3px] border-neutral-900 rounded-full"></div>
@@ -423,7 +321,6 @@ export const Home: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
               {developMode === 'AGENTIC' && <div className="absolute inset-0 bg-[#E30613]/5 pointer-events-none mix-blend-overlay"></div>}
             </div>
           )}
@@ -435,12 +332,12 @@ export const Home: React.FC = () => {
             <div className="flex-1 flex flex-col items-center gap-4 w-full">
               <div className="flex flex-col sm:flex-row gap-3 w-full h-14">
                 {result && !isDeveloping && (
-                   <button onClick={handleReset} className="w-14 bg-neutral-900 border border-neutral-800 text-neutral-500 hover:text-white hover:bg-neutral-800 transition-all flex items-center justify-center active:scale-95" title="放弃显影并重置">
+                   <button onClick={handleFullReset} className="w-14 bg-neutral-900 border border-neutral-800 text-neutral-500 hover:text-white hover:bg-neutral-800 transition-all flex items-center justify-center active:scale-95" title="放弃显影并重置">
                       <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
                    </button>
                 )}
                 <button 
-                  onClick={handleDevelop} 
+                  onClick={onDevelopClick} 
                   disabled={!sourceImage || isDeveloping} 
                   className={`flex-1 bg-white text-black font-black text-[14px] tracking-[0.5em] transition-all uppercase shadow-2xl active:scale-95
                     ${!sourceImage || isDeveloping ? 'opacity-10 cursor-not-allowed' : 'hover:bg-[#E30613] hover:text-white'}`}
@@ -453,7 +350,6 @@ export const Home: React.FC = () => {
                   </button>
                 )}
               </div>
-
               {!isDeveloping && (
                 <div className="flex items-center gap-1 bg-[#1A1A1A] p-1.5 border border-neutral-800/80 rounded-sm">
                   <button 
@@ -488,12 +384,7 @@ export const Home: React.FC = () => {
             </div>
           </div>
           <div className="w-full max-w-5xl mx-auto mt-2">
-            <HistoryStrip 
-              sessions={history} 
-              onSelect={handleHistorySelect} 
-              onDownload={handleDownload}
-              onShowInfo={(session) => setInfoModalSession(session)}
-            />
+            <HistoryStrip sessions={history} onSelect={handleHistorySelect} onDownload={handleDownload} onShowInfo={(session) => setInfoModalSession(session)} />
           </div>
         </section>
 
@@ -523,7 +414,6 @@ export const Home: React.FC = () => {
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
               </div>
-
               <div className="flex flex-col gap-8">
                 <div className="flex flex-col gap-3">
                   <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
@@ -533,10 +423,7 @@ export const Home: React.FC = () => {
                         {infoModalSession.outputMeta.mode === 'AGENTIC' ? '大师模式报告' : 'AIGC 显影协议'}
                       </span>
                     </div>
-                    <button 
-                      onClick={() => handleCopyPrompt(infoModalSession.outputMeta.promptUsed)}
-                      className="text-[9px] font-black text-neutral-500 hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 group"
-                    >
+                    <button onClick={() => handleCopyPrompt(infoModalSession.outputMeta.promptUsed)} className="text-[9px] font-black text-neutral-500 hover:text-white transition-colors uppercase tracking-widest flex items-center gap-2 group">
                       <svg className="w-3 h-3 transition-transform group-active:scale-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                       {copyFeedback ? '已复制' : '复制技术文本'}
                     </button>
@@ -548,7 +435,6 @@ export const Home: React.FC = () => {
                     </div>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-y-8 gap-x-6 border-t border-neutral-900 pt-8">
                    <div className="flex flex-col gap-1.5">
                      <span className="text-[9px] font-black text-neutral-700 tracking-[0.2em] uppercase">显影强度</span>
@@ -570,11 +456,7 @@ export const Home: React.FC = () => {
                    </div>
                 </div>
               </div>
-
-              <button 
-                onClick={() => { handleDownload(infoModalSession); setInfoModalSession(null); }} 
-                className="mt-4 h-16 bg-white text-black font-black text-[12px] tracking-[0.5em] uppercase hover:bg-[#E30613] hover:text-white transition-all shadow-2xl active:scale-[0.98] rounded-sm"
-              >
+              <button onClick={() => { handleDownload(infoModalSession); setInfoModalSession(null); }} className="mt-4 h-16 bg-white text-black font-black text-[12px] tracking-[0.5em] uppercase hover:bg-[#E30613] hover:text-white transition-all shadow-2xl active:scale-[0.98] rounded-sm">
                 下载高清原片
               </button>
             </div>
@@ -583,12 +465,10 @@ export const Home: React.FC = () => {
       )}
 
       <style>{`
-        @keyframes scan { 0% { left: -100%; } 100% { left: 100%; } }
-        .animate-scan { animation: scan 3s infinite cubic-bezier(0.45, 0.05, 0.55, 0.95); }
-        .animate-fade-in { animation: fadeIn 1s ease-out forwards; }
-        .animate-scale-in { animation: scaleIn 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes scaleIn { from { opacity: 0; transform: scale(0.99); } to { opacity: 1; transform: scale(1); } }
+        .animate-fade-in { animation: fadeIn 1s ease-out forwards; }
+        .animate-scale-in { animation: scaleIn 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards; }
         ::-webkit-scrollbar { display: none; }
         .scroll-thin::-webkit-scrollbar { width: 4px; display: block; }
         .scroll-thin::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
