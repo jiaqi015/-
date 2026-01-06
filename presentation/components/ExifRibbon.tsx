@@ -22,10 +22,10 @@ export const ExifRibbon: React.FC<ExifRibbonProps> = ({ session, imageUrl }) => 
           </span>
         </div>
 
-        {/* 右侧：Leifi Logo (原中间位置移动至此) */}
+        {/* 右侧：纯正红点 Logo */}
         <div className="flex flex-col items-center sm:items-end">
            <div className="w-10 h-10 rounded-full bg-[#E30613] flex items-center justify-center shadow-lg shadow-red-500/20">
-              <span className="text-white text-[12px] font-black tracking-tighter mb-0.5">Leifi</span>
+              {/* 移除英文文本 */}
            </div>
         </div>
       </div>
