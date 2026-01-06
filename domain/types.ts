@@ -7,6 +7,14 @@ export interface GroundingSource {
   uri: string;
 }
 
+export interface DevelopManifest {
+  diagnostic: string;
+  tasks: string[];
+  focusAreas: string[];
+  requiredKnowledge: string[];
+  auditCriteria: string;
+}
+
 export interface OpticalProperties {
   microContrast: 'high' | 'medium' | 'soft';
   chromaticAberration: 'none' | 'vintage' | 'controlled';
@@ -54,7 +62,8 @@ export interface DevelopSession {
     intensity: number;
     mode: DevelopMode;
     promptUsed: string;
-    sources?: GroundingSource[]; // 存储来自 Google Search 的溯源
+    sources?: GroundingSource[];
+    manifest?: DevelopManifest;
   };
   outputUrl: string;
 }

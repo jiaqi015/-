@@ -1,7 +1,7 @@
 
 import { IImageProcessor, WorkflowStep } from '../application/ports';
-import { CameraProfile, DevelopResult, DevelopMode, GroundingSource } from '../domain/types';
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold, GenerateContentResponse } from "@google/genai";
+import { CameraProfile, DevelopResult, DevelopMode, GroundingSource, DevelopManifest } from '../domain/types';
+import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 import { KnowledgeRetrievalService } from './knowledgeBase';
 
 type SupportedAspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
@@ -13,44 +13,14 @@ interface InternalImageData {
   height: number;
 }
 
-/**
- * 核心引擎配置：严格遵循最新命名规范
- */
 const MODELS = {
-  QUICK_DEV: 'gemini-2.5-flash-image',       // 快速显影引擎
-  MASTER_AUDIT: 'gemini-3-pro-preview',      // 大师级推理审计
-  MASTER_RENDER: 'gemini-3-pro-image-preview' // 高精度像素重构
+  QUICK_DEV: 'gemini-3-flash-preview',
+  ORCHESTRATOR: 'gemini-3-pro-preview',
+  MASTER_RENDER: 'gemini-3-pro-image-preview'
 };
-
-/**
- * 智能资源调度层：信息熵与强度双维度博弈
- */
-class AdaptiveBudgetController {
-  /**
-   * 根据影像复杂度与显影强度动态分配推理预算
-   */
-  static calculate(intensity: number, profile: CameraProfile): number {
-    // 基础算力：1024
-    let budget = 1024;
-    
-    // 权重 A：显影强度（强度 0.8 以上触发深层物理建模）
-    const intensityMultiplier = Math.pow(intensity, 2.5);
-    
-    // 权重 B：预设复杂度
-    const profileComplexity = profile.promptTemplate.length > 600 ? 1.4 : 1.0;
-
-    budget += (intensityMultiplier * 15360 * profileComplexity);
-
-    // 封顶 16384，保底 1024，确保成本与性能平衡
-    return Math.floor(Math.min(Math.max(budget, 1024), 16384));
-  }
-}
 
 export class GeminiImageProcessor implements IImageProcessor {
   
-  /**
-   * 指数退避重试：确保极端并发下的显影稳定性
-   */
   private async withResilience<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
     try {
       return await fn();
@@ -72,21 +42,111 @@ export class GeminiImageProcessor implements IImageProcessor {
     onProgress?: (step: WorkflowStep) => void
   ): Promise<DevelopResult> {
     const apiKey = process.env.API_KEY;
-    if (!apiKey) throw new Error("实验室授权未就绪，请先完成身份验证。");
+    if (!apiKey) throw new Error("实验室授权未就绪。");
 
-    const ai = new GoogleGenAI({ apiKey });
     const imageData = await this.getOptimizedImageData(imageSource, 1536);
     
     return mode === 'AGENTIC' 
-      ? this.executeAgenticWorkflow(ai, imageData, profile, intensity, onProgress)
-      : this.executeFlashWorkflow(ai, imageData, profile, intensity, onProgress);
+      ? this.executeAutonomousWorkflow(imageData, profile, intensity, onProgress)
+      : this.executeFlashWorkflow(imageData, profile, intensity, onProgress);
   }
 
-  /**
-   * 标准快显流程：模拟化学显影的快速反应
-   */
+  private async executeAutonomousWorkflow(
+    img: InternalImageData,
+    profile: CameraProfile,
+    intensity: number,
+    onProgress?: (step: WorkflowStep) => void
+  ): Promise<DevelopResult> {
+    onProgress?.('ANALYZING_OPTICS');
+
+    // 1. 自规划阶段：生成显影清单 (Develop Manifest)
+    const planningResponse = await this.withResilience<GenerateContentResponse>(async () => {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      return ai.models.generateContent({
+        model: MODELS.ORCHESTRATOR,
+        contents: {
+          parts: [
+            { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
+            { text: `你是一位殿堂级摄影大师与首席显影师。请对该影像执行【自主规划】。
+你的目标是模拟 ${profile.name} 的极致质感。
+输出一个 JSON 格式的显影清单，包含：
+1. diagnostic: 对底片光影和物理特征的专业临床诊断（中文）。
+2. tasks: 为了达到目标，你需要执行的具体显影任务列表（中文）。
+3. focusAreas: 重点关注的图像区域（中文）。
+4. requiredKnowledge: 需要检索的摄影百科关键词。
+5. auditCriteria: 完成后的自我审计标准（中文）。` }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              diagnostic: { type: Type.STRING },
+              tasks: { type: Type.ARRAY, items: { type: Type.STRING } },
+              focusAreas: { type: Type.ARRAY, items: { type: Type.STRING } },
+              requiredKnowledge: { type: Type.ARRAY, items: { type: Type.STRING } },
+              auditCriteria: { type: Type.STRING }
+            },
+            required: ["diagnostic", "tasks", "focusAreas", "requiredKnowledge", "auditCriteria"]
+          }
+        }
+      });
+    });
+
+    const manifest: DevelopManifest = JSON.parse(planningResponse.text || "{}");
+
+    onProgress?.('RETRIEVING_KNOWLEDGE');
+    // 2. 自工具检索：结合 Manifest 执行检索
+    const searchResponse = await this.withResilience<GenerateContentResponse>(async () => {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      return ai.models.generateContent({
+        model: MODELS.MASTER_RENDER,
+        contents: `检索关于 ${manifest.requiredKnowledge.join(', ')} 的光学实验室数据及 ${profile.name} 的最新显影协议。`,
+        config: { tools: [{ googleSearch: {} }] }
+      });
+    });
+    
+    const sources = this.extractSources(searchResponse);
+    const localData = KnowledgeRetrievalService.retrieve([...manifest.requiredKnowledge, profile.name]);
+
+    onProgress?.('NEURAL_DEVELOPING');
+    // 3. 自执行渲染
+    const finalInstruction = `【徕滤超级 Agent 自主显影协议】
+[临床诊断]：${manifest.diagnostic}
+[任务编排]：${manifest.tasks.join(' -> ')}
+[重点区域]：${manifest.focusAreas.join(', ')}
+[物理建模百科]：${localData.substring(0, 1000)}
+[全球实时数据]：${searchResponse.text}
+
+显影师指令：
+请以 ${intensity} 强度执行物理建模。不仅是调色，要注入 ${profile.name} 的物理灵魂。
+审计标准：${manifest.auditCriteria}`;
+
+    const response = await this.withResilience<GenerateContentResponse>(async () => {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      return ai.models.generateContent({
+        model: MODELS.MASTER_RENDER,
+        contents: {
+          parts: [
+            { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
+            { text: finalInstruction }
+          ],
+        },
+        config: {
+          imageConfig: { 
+            aspectRatio: this.matchAspectRatio(img.width, img.height),
+            imageSize: "1K" 
+          }
+        }
+      });
+    });
+
+    onProgress?.('QUALITY_CHECKING');
+    return this.packageResult(response, profile, intensity, 'AGENTIC', finalInstruction, img.width, img.height, sources, manifest);
+  }
+
   private async executeFlashWorkflow(
-    ai: GoogleGenAI,
     img: InternalImageData,
     profile: CameraProfile,
     intensity: number,
@@ -98,110 +158,26 @@ export class GeminiImageProcessor implements IImageProcessor {
     onProgress?.('NEURAL_DEVELOPING');
     const prompt = `【徕滤实验室：快显协议】
 参照 ${profile.name} 的光学特征，以 ${intensity} 的显影深度执行。
-底层参考：${context.substring(0, 400)}
-目标：重塑影调，注入胶片质感。`;
+目标：重塑影调，注入胶片质感。
+参考背景知识：${context.substring(0, 500)}`;
 
-    const response = await this.withResilience(() => ai.models.generateContent({
-      model: MODELS.QUICK_DEV,
-      contents: {
-        parts: [
-          { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
-          { text: prompt }
-        ],
-      },
-      config: {
-        imageConfig: { aspectRatio: this.matchAspectRatio(img.width, img.height) }
-      }
-    }));
+    const response = await this.withResilience<GenerateContentResponse>(async () => {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      return ai.models.generateContent({
+        model: MODELS.QUICK_DEV,
+        contents: {
+          parts: [
+            { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
+            { text: prompt }
+          ],
+        },
+        config: {
+          imageConfig: { aspectRatio: this.matchAspectRatio(img.width, img.height) }
+        }
+      });
+    });
 
     return this.packageResult(response, profile, intensity, 'DIRECT', prompt, img.width, img.height);
-  }
-
-  /**
-   * Agent 大师显影流程：全维度物理建模重构
-   */
-  private async executeAgenticWorkflow(
-    ai: GoogleGenAI,
-    img: InternalImageData,
-    profile: CameraProfile,
-    intensity: number,
-    onProgress?: (step: WorkflowStep) => void
-  ): Promise<DevelopResult> {
-    const budget = AdaptiveBudgetController.calculate(intensity, profile);
-    console.debug(`[实验室动态调度] 显影预算分配: ${budget} 神经元`);
-
-    onProgress?.('ANALYZING_OPTICS');
-    
-    // 步骤 1：全方位物理审计 (光谱 + 几何 + 物理参数推导)
-    const auditResponse = await this.withResilience(() => ai.models.generateContent({
-      model: MODELS.MASTER_AUDIT,
-      contents: {
-        parts: [
-          { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
-          { text: `你是一位殿堂级摄影物理学家。请对该底片执行【全维度物理审计】：
-1. 【环境光线审计】：分析光源的光谱显色指数 (CRI) 及其照度等级 (EV)。
-2. 【镜头几何建模】：推断当前的物距关系。如果是广角或大光圈，识别径向对比度衰减 (Radial Decay) 的物理热图。
-3. 【数字孪生推演】：如果这张照片是用 ${profile.name} 拍摄的，推导其物理光圈、快门及感光度的“伪物理参数”。
-请以极具艺术感的中文回复，200字内。` }
-        ]
-      },
-      config: { 
-        thinkingConfig: { thinkingBudget: budget } 
-      }
-    }));
-    const auditReport = auditResponse.text || "审计完成。";
-
-    onProgress?.('RETRIEVING_KNOWLEDGE');
-    // 步骤 2：实验室溯源与本地知识融合
-    const searchResponse = await this.withResilience(() => ai.models.generateContent({
-      model: MODELS.MASTER_RENDER,
-      contents: `检索关于 ${profile.name} 相机的最新光学实验室评测数据，以及 ${profile.category} 品牌的色彩科学协议。`,
-      config: { tools: [{ googleSearch: {} }] }
-    }));
-    
-    const sources = this.extractSources(searchResponse);
-    const searchData = searchResponse.text || "";
-    const localData = KnowledgeRetrievalService.retrieve([profile.name, profile.category, '光学', '物理']);
-
-    onProgress?.('NEURAL_DEVELOPING');
-    // 步骤 3：区域显影渲染 (注入 Zone System 逻辑)
-    const renderInstruction = `【徕滤实验室：大师级显影协议】
-
-【物理审计建模】
-${auditReport}
-
-【实时全球档案】
-${searchData}
-
-【本地光学底稿】
-${localData.substring(0, 1000)}
-
-【终极显影要求】
-作为首席显影师，基于上述物理建模，以强度 ${intensity} 执行重构。
-1. 严格遵循【区域曝光系统 (Zone System)】：保护 0 区阴影深度与 10 区高光纹理，避免数码感死白。
-2. 注入【物理缺陷美学】：模拟真实镜头的色散分布与边缘解析度退化。
-3. 颗粒重组：在信息熵高的区域注入更具质感的银盐晶体结构。
-执行像素级物理建模，而非简单的调色。`;
-
-    const response = await this.withResilience(() => ai.models.generateContent({
-      model: MODELS.MASTER_RENDER,
-      contents: {
-        parts: [
-          { inlineData: { data: img.base64Data, mimeType: img.mimeType } },
-          { text: renderInstruction }
-        ],
-      },
-      config: {
-        safetySettings: this.getSafetyConfig(),
-        imageConfig: { 
-          aspectRatio: this.matchAspectRatio(img.width, img.height),
-          imageSize: "1K" 
-        },
-        tools: [{ googleSearch: {} }]
-      }
-    }));
-
-    return this.packageResult(response, profile, intensity, 'AGENTIC', renderInstruction, img.width, img.height, sources);
   }
 
   private extractSources(response: GenerateContentResponse): GroundingSource[] {
@@ -218,7 +194,8 @@ ${localData.substring(0, 1000)}
     prompt: string,
     width: number,
     height: number,
-    sources?: GroundingSource[]
+    sources?: GroundingSource[],
+    manifest?: DevelopManifest
   ): DevelopResult {
     const candidate = response.candidates[0];
     let base64 = '';
@@ -231,7 +208,7 @@ ${localData.substring(0, 1000)}
     }
 
     if (!base64) {
-      throw new Error(`显影失败：由于神经引擎反馈 [${candidate.finishReason}]，无法生成影像。建议重置实验室或检查底片内容。`);
+      throw new Error(`显影失败：由于神经引擎反馈 [${candidate.finishReason}]。`);
     }
 
     const binary = atob(base64);
@@ -244,20 +221,11 @@ ${localData.substring(0, 1000)}
         cameraId: profile.id,
         cameraName: profile.name,
         createdAt: new Date(),
-        outputMeta: { width, height, intensity, mode, promptUsed: prompt, sources },
+        outputMeta: { width, height, intensity, mode, promptUsed: prompt, sources, manifest },
         outputUrl: `data:image/png;base64,${base64}`
       },
       blob: new Blob([array], { type: 'image/png' })
     };
-  }
-
-  private getSafetyConfig() {
-    return [
-      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE }
-    ];
   }
 
   private matchAspectRatio(w: number, h: number): SupportedAspectRatio {
@@ -282,7 +250,7 @@ ${localData.substring(0, 1000)}
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
-        if (!ctx) return reject("Canvas Context Error");
+        if (!ctx) return reject("Canvas Error");
         ctx.drawImage(img, 0, 0, w, h);
         const data = canvas.toDataURL('image/jpeg', 0.94).split(',')[1];
         resolve({ base64Data: data, mimeType: 'image/jpeg', width: Math.round(w), height: Math.round(h) });

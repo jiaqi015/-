@@ -7,7 +7,7 @@ import { IntensitySlider } from './components/IntensitySlider';
 import { ExifRibbon } from './components/ExifRibbon';
 import { HistoryStrip } from './components/HistoryStrip';
 import { cameraCatalogUseCase, downloadAppService } from '../infrastructure/container';
-import { CameraProfile, DevelopSession, DevelopMode, GroundingSource } from '../domain/types';
+import { CameraProfile, DevelopSession, DevelopMode, GroundingSource, DevelopManifest } from '../domain/types';
 import { WorkflowStep } from '../application/ports';
 import { LocalSessionRepository } from '../infrastructure/sessionRepository';
 
@@ -53,7 +53,73 @@ const LaboratoryTimer: React.FC<{ active: boolean; modeColor: string }> = ({ act
   );
 };
 
-const PromptFormatter: React.FC<{ text: string; sources?: GroundingSource[] }> = ({ text, sources }) => {
+const MasterModeReport: React.FC<{ manifest: DevelopManifest }> = ({ manifest }) => {
+  return (
+    <div className="flex flex-col gap-6 animate-fade-in text-[11px] font-mono leading-relaxed">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-white font-black uppercase text-[12px]">
+          <span className="w-1 h-3 bg-[#D4AF37]" />
+          <span>大师级视觉诊断报告</span>
+        </div>
+        <p className="text-neutral-400 pl-3 border-l border-neutral-800">{manifest.diagnostic}</p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-white font-black uppercase text-[12px]">
+          <span className="w-1 h-3 bg-neutral-500" />
+          <span>神经编排任务流</span>
+        </div>
+        <div className="flex flex-col gap-1 pl-3 border-l border-neutral-800">
+          {manifest.tasks.map((task, i) => (
+            <div key={i} className="flex gap-2">
+              <span className="text-[#D4AF37] font-bold">0{i + 1}</span>
+              <span className="text-neutral-500">{task}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-white font-black uppercase text-[12px]">
+          <span className="w-1 h-3 bg-blue-500" />
+          <span>审美审计标准</span>
+        </div>
+        <p className="text-neutral-400 pl-3 border-l border-neutral-800 italic">{manifest.auditCriteria}</p>
+      </div>
+    </div>
+  );
+};
+
+const PromptFormatter: React.FC<{ text: string; sources?: GroundingSource[]; manifest?: DevelopManifest }> = ({ text, sources, manifest }) => {
+  if (manifest) {
+    return (
+      <div className="flex flex-col gap-8">
+        <MasterModeReport manifest={manifest} />
+        {sources && sources.length > 0 && (
+          <div className="border-t border-neutral-800 pt-6">
+            <div className="text-white font-black mb-3 text-[12px] uppercase flex items-center gap-2">
+              <span className="w-1 h-3 bg-blue-500" />
+              <span>实验室实时技术溯源</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {sources.map((source, idx) => (
+                <a 
+                  key={idx} 
+                  href={source.uri} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300 underline underline-offset-4 text-[10px] truncate block opacity-70 hover:opacity-100 transition-opacity"
+                >
+                  [{idx + 1}] {source.title}
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const lines = text.split('\n');
   return (
     <div className="flex flex-col gap-4 font-mono text-[11px] leading-relaxed tracking-tight">
@@ -431,7 +497,7 @@ export const Home: React.FC = () => {
                   <div className="bg-[#0A0A0A] border border-neutral-800/50 p-6 rounded-sm relative group overflow-hidden">
                     <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-neutral-800 transition-colors group-hover:bg-[#E30613]"></div>
                     <div className="max-h-[350px] overflow-y-auto pr-3 scroll-thin">
-                      <PromptFormatter text={infoModalSession.outputMeta.promptUsed} sources={infoModalSession.outputMeta.sources} />
+                      <PromptFormatter text={infoModalSession.outputMeta.promptUsed} sources={infoModalSession.outputMeta.sources} manifest={infoModalSession.outputMeta.manifest} />
                     </div>
                   </div>
                 </div>
