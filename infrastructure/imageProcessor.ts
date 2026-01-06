@@ -14,7 +14,8 @@ interface InternalImageData {
 }
 
 const MODELS = {
-  QUICK_DEV: 'gemini-3-flash-preview',
+  // 必须使用支持 imageConfig (aspectRatio) 的模型
+  QUICK_DEV: 'gemini-2.5-flash-image', 
   ORCHESTRATOR: 'gemini-3-pro-preview',
   MASTER_RENDER: 'gemini-3-pro-image-preview'
 };
@@ -61,6 +62,7 @@ export class GeminiImageProcessor implements IImageProcessor {
 
     // 1. 自规划阶段：生成显影清单 (Develop Manifest)
     const planningResponse = await this.withResilience<GenerateContentResponse>(async () => {
+      // 必须在调用前创建实例以确保使用最新的 API KEY
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       return ai.models.generateContent({
         model: MODELS.ORCHESTRATOR,
