@@ -114,7 +114,7 @@ export class GeminiImageProcessor implements IImageProcessor {
 
     onProgress?.('NEURAL_DEVELOPING');
     // 3. 自执行渲染
-    const finalInstruction = `【徕滤超级 Agent 自主显影协议】
+    const finalInstruction = `【开机超级 Agent 自主显影协议】
 [临床诊断]：${manifest.diagnostic}
 [任务编排]：${manifest.tasks.join(' -> ')}
 [重点区域]：${manifest.focusAreas.join(', ')}
@@ -158,7 +158,7 @@ export class GeminiImageProcessor implements IImageProcessor {
     const context = KnowledgeRetrievalService.retrieve([profile.name, '影调']);
     
     onProgress?.('NEURAL_DEVELOPING');
-    const prompt = `【徕滤实验室：快显协议】
+    const prompt = `【开机实验室：快显协议】
 参照 ${profile.name} 的光学特征，以 ${intensity} 的显影深度执行。
 目标：重塑影调，注入胶片质感。
 参考背景知识：${context.substring(0, 500)}`;

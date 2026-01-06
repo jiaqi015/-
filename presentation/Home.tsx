@@ -270,7 +270,7 @@ export const Home: React.FC = () => {
         <div className="mt-12 p-10 border border-neutral-800 bg-[#161616] max-w-sm shadow-2xl rounded-sm">
            <p className="text-white font-black mb-6 tracking-[0.3em] uppercase text-[11px]">正在唤醒显影神经引擎</p>
            <button onClick={triggerAuth} className="w-full h-16 bg-white text-black font-black tracking-[0.4em] hover:bg-[#E30613] hover:text-white transition-all uppercase text-[12px] active:scale-95">开始显影流程</button>
-           <p className="mt-6 text-[8px] text-neutral-600 font-bold tracking-[0.2em] uppercase">© 2026 徕滤 / AI 光学与艺术</p>
+           <p className="mt-6 text-[8px] text-neutral-600 font-bold tracking-[0.2em] uppercase">© 2026 开机 / AI 光学与艺术</p>
         </div>
       </div>
     );
@@ -459,7 +459,7 @@ export const Home: React.FC = () => {
         </section>
 
         <footer className="mt-6 border-t border-neutral-900 pt-6 text-center pb-8 opacity-40">
-           <p className="text-[9px] text-neutral-600 tracking-[0.5em] font-black uppercase">© 2026 徕滤 / AI 光学与艺术</p>
+           <p className="text-[9px] text-neutral-600 tracking-[0.5em] font-black uppercase">© 2026 开机 / AI 光学与艺术</p>
         </footer>
       </div>
 

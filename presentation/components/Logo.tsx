@@ -8,7 +8,7 @@ export const Logo: React.FC = () => {
         <span className="text-white text-[12px] font-black tracking-tighter mb-0.5">Leifi</span>
       </div>
       <div className="flex flex-col -gap-0.5">
-        <span className="font-black text-xl tracking-tighter text-white uppercase">徕滤相机</span>
+        <span className="font-black text-xl tracking-tighter text-white uppercase">开机</span>
       </div>
     </div>
   );
